@@ -1,5 +1,12 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "jet2-ptfs",
-  "compatibility_date": "2026-09-10"
+  "compatibility_date": "2026-09-10",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "jet2-ptfs-db",
+      "database_id": "7edad159-71d2-44d1-9ac2-c561208e9cbb"
+    }
+  ]
 }
