@@ -1,11 +1,5 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "jet2-virtual-airline",
-  "compatibility_date": "2026-09-10",
-  "main": "src/worker.js",
-  "assets": {
-    "directory": "./dist",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
-  }
+  "name": "jet2-ptfs",
+  "compatibility_date": "2026-09-10"
 }
