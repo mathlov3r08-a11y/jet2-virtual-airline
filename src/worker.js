@@ -1,5 +1,9 @@
 export default {
-  async fetch(request, env) {
-    return env.ASSETS.fetch(request);
+  async fetch() {
+    return new Response("Jet2 | PTFS API online", {
+      headers: {
+        "content-type": "text/plain"
+      }
+    });
   }
 };
