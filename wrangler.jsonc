@@ -1,0 +1,6 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "jet2-virtual-airline",
+  "compatibility_date": "2026-09-10",
+  "main": "src/worker.js"
+}
