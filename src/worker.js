@@ -1,29 +1,36 @@
-import { DISCORD_CLIENT_ID, DISCORD_REDIRECT_URI } from "./auth-config.js";
+import {
+  DISCORD_CLIENT_ID,
+  DISCORD_REDIRECT_URI
+} from "./auth-config.js";
+
+const JET2_GUILD_ID = "1394355545858773003";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json; charset=UTF-8",
+      "cache-control": "no-store"
     }
   });
 }
 
-function redirect(url) {
+function redirect(url, cookies = []) {
   return new Response(null, {
     status: 302,
     headers: {
-      Location: url
+      Location: url,
+      ...(cookies.length > 0
+        ? {
+            "Set-Cookie": cookies
+          }
+        : {})
     }
   });
 }
 
-function randomId(length = 32) {
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-
-  return Array.from(bytes)
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+function randomId() {
+  return crypto.randomUUID();
 }
 
 function getCookie(request, name) {
@@ -33,22 +40,28 @@ function getCookie(request, name) {
     return null;
   }
 
-  const cookies = cookieHeader.split(";");
+  for (const cookie of cookieHeader.split(";")) {
+    const trimmed = cookie.trim();
+    const separator = trimmed.indexOf("=");
 
-  for (const cookie of cookies) {
-    const [key, ...valueParts] = cookie.trim().split("=");
+    if (separator === -1) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separator);
+    const value = trimmed.slice(separator + 1);
 
     if (key === name) {
-      return decodeURIComponent(valueParts.join("="));
+      return decodeURIComponent(value);
     }
   }
 
   return null;
 }
 
-function sessionCookie(sessionId, maxAge) {
+function makeCookie(name, value, maxAge) {
   return [
-    `jet2_session=${encodeURIComponent(sessionId)}`,
+    `${name}=${encodeURIComponent(value)}`,
     "Path=/",
     "HttpOnly",
     "Secure",
@@ -57,54 +70,268 @@ function sessionCookie(sessionId, maxAge) {
   ].join("; ");
 }
 
+function clearCookie(name) {
+  return [
+    `${name}=`,
+    "Path=/",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+    "Max-Age=0"
+  ].join("; ");
+}
+
+async function discordRequest(path, options = {}) {
+  return fetch(`https://discord.com/api/v10${path}`, options);
+}
+
+async function getDiscordUser(accessToken) {
+  const response = await discordRequest("/users/@me", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error("DISCORD_USER_LOOKUP_FAILED");
+  }
+
+  return response.json();
+}
+
+async function getJet2Member(discordUserId, botToken) {
+  const response = await discordRequest(
+    `/guilds/${JET2_GUILD_ID}/members/${discordUserId}`,
+    {
+      headers: {
+        Authorization: `Bot ${botToken}`
+      }
+    }
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error("DISCORD_MEMBER_LOOKUP_FAILED");
+  }
+
+  return response.json();
+}
+
+async function getJet2Roles(botToken) {
+  const response = await discordRequest(
+    `/guilds/${JET2_GUILD_ID}/roles`,
+    {
+      headers: {
+        Authorization: `Bot ${botToken}`
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("DISCORD_ROLE_LOOKUP_FAILED");
+  }
+
+  return response.json();
+}
+
+function getHighestRole(member, roles) {
+  if (!member?.roles?.length) {
+    return null;
+  }
+
+  const roleMap = new Map(
+    roles.map((role) => [role.id, role])
+  );
+
+  const memberRoles = member.roles
+    .map((roleId) => roleMap.get(roleId))
+    .filter(Boolean)
+    .filter((role) => role.id !== JET2_GUILD_ID);
+
+  if (memberRoles.length === 0) {
+    return null;
+  }
+
+  memberRoles.sort((a, b) => b.position - a.position);
+
+  return memberRoles[0];
+}
+
+async function createSession(db, userId) {
+  const sessionId = randomId();
+
+  await db.prepare(
+    `
+      INSERT INTO auth_sessions (
+        id,
+        user_id,
+        expires_at
+      )
+      VALUES (
+        ?,
+        ?,
+        datetime('now', '+7 days')
+      )
+    `
+  )
+    .bind(sessionId, userId)
+    .run();
+
+  return sessionId;
+}
+
+async function getSession(db, sessionId) {
+  if (!sessionId) {
+    return null;
+  }
+
+  return db.prepare(
+    `
+      SELECT
+        auth_sessions.id,
+        auth_sessions.user_id,
+        auth_sessions.expires_at,
+        users.discord_user_id,
+        users.discord_username
+      FROM auth_sessions
+      INNER JOIN users
+        ON users.id = auth_sessions.user_id
+      WHERE auth_sessions.id = ?
+        AND datetime(auth_sessions.expires_at) > datetime('now')
+    `
+  )
+    .bind(sessionId)
+    .first();
+}
+
+async function writeAuditLog(
+  db,
+  userId,
+  action,
+  targetType = null,
+  targetId = null,
+  details = null
+) {
+  await db.prepare(
+    `
+      INSERT INTO audit_logs (
+        user_id,
+        action,
+        target_type,
+        target_id,
+        details
+      )
+      VALUES (?, ?, ?, ?, ?)
+    `
+  )
+    .bind(
+      userId,
+      action,
+      targetType,
+      targetId,
+      details ? JSON.stringify(details) : null
+    )
+    .run();
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     /*
-     * Discord OAuth: start login
+     * ---------------------------------------------------------
+     * DISCORD LOGIN
+     * ---------------------------------------------------------
      */
+
     if (url.pathname === "/api/auth/discord") {
-      const state = randomId(32);
+      const state = randomId();
 
       const discordUrl = new URL(
         "https://discord.com/oauth2/authorize"
       );
 
-      discordUrl.searchParams.set("client_id", DISCORD_CLIENT_ID);
-      discordUrl.searchParams.set("response_type", "code");
-      discordUrl.searchParams.set("redirect_uri", DISCORD_REDIRECT_URI);
-      discordUrl.searchParams.set("scope", "identify");
-      discordUrl.searchParams.set("state", state);
+      discordUrl.searchParams.set(
+        "client_id",
+        DISCORD_CLIENT_ID
+      );
 
-      return new Response(null, {
-        status: 302,
-        headers: {
-          Location: discordUrl.toString(),
-          "Set-Cookie": [
-            `jet2_oauth_state=${encodeURIComponent(state)}`,
-            "Path=/",
-            "HttpOnly",
-            "Secure",
-            "SameSite=Lax",
-            "Max-Age=600"
-          ].join("; ")
-        }
-      });
+      discordUrl.searchParams.set(
+        "response_type",
+        "code"
+      );
+
+      discordUrl.searchParams.set(
+        "redirect_uri",
+        DISCORD_REDIRECT_URI
+      );
+
+      /*
+       * We intentionally keep the scopes you configured:
+       *
+       * identify
+       * guilds
+       * guilds.members.read
+       *
+       * The bot is separately installed in the Jet2 server
+       * and is the authoritative source for server membership
+       * and roles.
+       */
+      discordUrl.searchParams.set(
+        "scope",
+        "identify guilds guilds.members.read"
+      );
+
+      discordUrl.searchParams.set(
+        "state",
+        state
+      );
+
+      return redirect(
+        discordUrl.toString(),
+        [
+          makeCookie(
+            "jet2_oauth_state",
+            state,
+            600
+          )
+        ]
+      );
     }
 
     /*
-     * Discord OAuth: callback
+     * ---------------------------------------------------------
+     * DISCORD CALLBACK
+     * ---------------------------------------------------------
      */
-    if (url.pathname === "/api/auth/discord/callback") {
+
+    if (
+      url.pathname ===
+      "/api/auth/discord/callback"
+    ) {
       const code = url.searchParams.get("code");
       const returnedState = url.searchParams.get("state");
-      const savedState = getCookie(request, "jet2_oauth_state");
+      const savedState = getCookie(
+        request,
+        "jet2_oauth_state"
+      );
 
-      if (!code || !returnedState || !savedState) {
+      if (!code) {
         return json(
           {
-            error: "Invalid OAuth request."
+            error: "Discord did not provide an authorization code."
+          },
+          400
+        );
+      }
+
+      if (!returnedState || !savedState) {
+        return json(
+          {
+            error: "Missing OAuth state."
           },
           400
         );
@@ -120,21 +347,25 @@ export default {
       }
 
       /*
-       * Exchange the authorization code for a Discord access token.
+       * Exchange the Discord authorization code.
        */
+
       const tokenResponse = await fetch(
-        "https://discord.com/api/oauth2/token",
+        "https://discord.com/api/v10/oauth2/token",
         {
           method: "POST",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
+            "Content-Type":
+              "application/x-www-form-urlencoded"
           },
           body: new URLSearchParams({
             client_id: DISCORD_CLIENT_ID,
-            client_secret: env.DISCORD_CLIENT_SECRET,
+            client_secret:
+              env.DISCORD_CLIENT_SECRET,
             grant_type: "authorization_code",
             code,
-            redirect_uri: DISCORD_REDIRECT_URI
+            redirect_uri:
+              DISCORD_REDIRECT_URI
           })
         }
       );
@@ -142,51 +373,130 @@ export default {
       if (!tokenResponse.ok) {
         return json(
           {
-            error: "Discord token exchange failed."
+            error: "Discord authorization failed."
           },
           502
         );
       }
 
-      const tokenData = await tokenResponse.json();
+      const tokenData =
+        await tokenResponse.json();
 
-      /*
-       * Retrieve the authenticated Discord user.
-       */
-      const discordUserResponse = await fetch(
-        "https://discord.com/api/users/@me",
-        {
-          headers: {
-            Authorization: `Bearer ${tokenData.access_token}`
-          }
-        }
-      );
-
-      if (!discordUserResponse.ok) {
+      if (!tokenData.access_token) {
         return json(
           {
-            error: "Unable to retrieve Discord user."
+            error:
+              "Discord did not return an access token."
           },
           502
         );
       }
 
-      const discordUser = await discordUserResponse.json();
+      /*
+       * Get the Discord account.
+       */
+
+      let discordUser;
+
+      try {
+        discordUser =
+          await getDiscordUser(
+            tokenData.access_token
+          );
+      } catch {
+        return json(
+          {
+            error:
+              "Unable to retrieve your Discord account."
+          },
+          502
+        );
+      }
 
       /*
-       * Create or update the local Jet2 user record.
+       * Verify Jet2 | PTFS membership using the
+       * authentication bot.
        */
+
+      let jet2Member;
+
+      try {
+        jet2Member =
+          await getJet2Member(
+            discordUser.id,
+            env.DISCORD_BOT_TOKEN
+          );
+      } catch {
+        return json(
+          {
+            error:
+              "Unable to verify Jet2 | PTFS server membership."
+          },
+          502
+        );
+      }
+
+      if (!jet2Member) {
+        return new Response(
+          "Access denied. Your Discord account is not a member of the Jet2 | PTFS server.",
+          {
+            status: 403,
+            headers: {
+              "content-type":
+                "text/plain; charset=UTF-8"
+            }
+          }
+        );
+      }
+
+      /*
+       * Retrieve the server's role list.
+       */
+
+      let jet2Roles;
+
+      try {
+        jet2Roles =
+          await getJet2Roles(
+            env.DISCORD_BOT_TOKEN
+          );
+      } catch {
+        return json(
+          {
+            error:
+              "Unable to retrieve Jet2 | PTFS roles."
+          },
+          502
+        );
+      }
+
+      /*
+       * Determine the user's highest server role.
+       */
+
+      const highestRole =
+        getHighestRole(
+          jet2Member,
+          jet2Roles
+        );
+
+      /*
+       * Create or update the local D1 user.
+       */
+
       await env.DB.prepare(
         `
-        INSERT INTO users (
-          discord_user_id,
-          discord_username
-        )
-        VALUES (?, ?)
-        ON CONFLICT(discord_user_id)
-        DO UPDATE SET
-          discord_username = excluded.discord_username,
-          updated_at = CURRENT_TIMESTAMP
+          INSERT INTO users (
+            discord_user_id,
+            discord_username
+          )
+          VALUES (?, ?)
+          ON CONFLICT(discord_user_id)
+          DO UPDATE SET
+            discord_username =
+              excluded.discord_username,
+            updated_at =
+              CURRENT_TIMESTAMP
         `
       )
         .bind(
@@ -195,88 +505,96 @@ export default {
         )
         .run();
 
-      const userResult = await env.DB.prepare(
+      const user = await env.DB.prepare(
         `
-        SELECT id
-        FROM users
-        WHERE discord_user_id = ?
+          SELECT id
+          FROM users
+          WHERE discord_user_id = ?
         `
       )
         .bind(discordUser.id)
         .first();
 
-      if (!userResult) {
+      if (!user) {
         return json(
           {
-            error: "Unable to create local user."
+            error:
+              "Unable to create your Jet2 account."
           },
           500
         );
       }
 
       /*
-       * Create a server-side session.
-       *
-       * The Discord access token is NOT sent to the browser.
+       * Create a secure server-side session.
        */
-      const sessionId = randomId(32);
 
-      await env.DB.prepare(
-        `
-        INSERT INTO auth_sessions (
-          id,
-          user_id,
-          expires_at
-        )
-        VALUES (?, ?, datetime('now', '+7 days'))
-        `
-      )
-        .bind(sessionId, userResult.id)
-        .run();
+      const sessionId =
+        await createSession(
+          env.DB,
+          user.id
+        );
 
       /*
-       * Clear the OAuth state cookie and establish the session.
+       * Record the successful login.
        */
-      return new Response(null, {
-        status: 302,
-        headers: {
-          Location: "/staff",
-          "Set-Cookie": [
-            sessionCookie(sessionId, 60 * 60 * 24 * 7),
-            "jet2_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
-          ]
+
+      await writeAuditLog(
+        env.DB,
+        user.id,
+        "auth.login",
+        "discord_user",
+        discordUser.id,
+        {
+          username:
+            discordUser.username,
+          highest_role:
+            highestRole?.name ?? null,
+          role_ids:
+            jet2Member.roles ?? []
         }
-      });
+      );
+
+      /*
+       * Send the user to the Staff Portal.
+       *
+       * The Discord OAuth access token is NEVER
+       * sent to the browser.
+       */
+
+      return redirect(
+        "/staff",
+        [
+          makeCookie(
+            "jet2_session",
+            sessionId,
+            60 * 60 * 24 * 7
+          ),
+          clearCookie(
+            "jet2_oauth_state"
+          )
+        ]
+      );
     }
 
     /*
-     * Temporary authentication status endpoint.
+     * ---------------------------------------------------------
+     * CURRENT USER
+     * ---------------------------------------------------------
      */
+
     if (url.pathname === "/api/auth/me") {
-      const sessionId = getCookie(request, "jet2_session");
+      const sessionId =
+        getCookie(
+          request,
+          "jet2_session"
+        );
 
-      if (!sessionId) {
-        return json({
-          authenticated: false
-        });
-      }
-
-      const session = await env.DB.prepare(
-        `
-        SELECT
-          auth_sessions.id,
-          auth_sessions.expires_at,
-          users.discord_user_id,
-          users.discord_username
-        FROM auth_sessions
-        JOIN users
-          ON users.id = auth_sessions.user_id
-        WHERE auth_sessions.id = ?
-          AND datetime(auth_sessions.expires_at) > datetime('now')
-        `
-      )
-        .bind(sessionId)
-        .first();
+      const session =
+        await getSession(
+          env.DB,
+          sessionId
+        );
 
       if (!session) {
         return json({
@@ -284,18 +602,117 @@ export default {
         });
       }
 
+      /*
+       * Re-check the user's current Discord membership
+       * and roles so the portal doesn't permanently trust
+       * an old login.
+       */
+
+      let jet2Member;
+
+      try {
+        jet2Member =
+          await getJet2Member(
+            session.discord_user_id,
+            env.DISCORD_BOT_TOKEN
+          );
+      } catch {
+        return json(
+          {
+            error:
+              "Unable to verify current Discord membership."
+          },
+          502
+        );
+      }
+
+      if (!jet2Member) {
+        return json({
+          authenticated: false,
+          reason:
+            "not_a_jet2_member"
+        });
+      }
+
+      let jet2Roles;
+
+      try {
+        jet2Roles =
+          await getJet2Roles(
+            env.DISCORD_BOT_TOKEN
+          );
+      } catch {
+        return json(
+          {
+            error:
+              "Unable to retrieve current Jet2 roles."
+          },
+          502
+        );
+      }
+
+      const highestRole =
+        getHighestRole(
+          jet2Member,
+          jet2Roles
+        );
+
       return json({
         authenticated: true,
         user: {
-          discordUserId: session.discord_user_id,
-          username: session.discord_username
+          discordUserId:
+            session.discord_user_id,
+          username:
+            session.discord_username,
+          rank:
+            highestRole?.name ??
+            "Staff Member",
+          roleIds:
+            jet2Member.roles ?? []
         }
       });
     }
 
     /*
-     * All normal website requests are handled by Cloudflare Assets.
+     * ---------------------------------------------------------
+     * LOGOUT
+     * ---------------------------------------------------------
      */
+
+    if (url.pathname === "/api/auth/logout") {
+      const sessionId =
+        getCookie(
+          request,
+          "jet2_session"
+        );
+
+      if (sessionId) {
+        await env.DB.prepare(
+          `
+            DELETE FROM auth_sessions
+            WHERE id = ?
+          `
+        )
+          .bind(sessionId)
+          .run();
+      }
+
+      return redirect(
+        "/",
+        [
+          clearCookie(
+            "jet2_session"
+          )
+        ]
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * STATIC WEBSITE
+     * ---------------------------------------------------------
+     */
+
     return env.ASSETS.fetch(request);
   }
 };
