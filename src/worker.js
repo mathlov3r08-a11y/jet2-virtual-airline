@@ -174,7 +174,7 @@ async function createSession(db, userId) {
       VALUES (
         ?,
         ?,
-        datetime('now', '+7 days')
+        datetime('now', '+2 hours')
       )
     `
   )
