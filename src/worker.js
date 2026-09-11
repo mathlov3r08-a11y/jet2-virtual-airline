@@ -20,10 +20,8 @@ function redirect(url, cookies = []) {
     Location: url
   });
 
-  if (cookies.length > 0) {
-    for (const cookie of cookies) {
-      headers.append("Set-Cookie", cookie);
-    }
+  for (const cookie of cookies) {
+    headers.append("Set-Cookie", cookie);
   }
 
   return new Response(null, {
@@ -284,16 +282,21 @@ function startDiscordLogin() {
   );
 }
 
+async function serveSpa(env, request) {
+  const indexRequest = new Request(
+    new URL("/index.html", request.url),
+    request
+  );
+
+  return env.ASSETS.fetch(indexRequest);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     /*
-     * STAFF PORTAL GATE
-     *
-     * Anyone visiting /staff must have a valid
-     * Jet2 session. Otherwise they are sent
-     * directly to Discord authentication.
+     * STAFF PORTAL AUTHENTICATION GATE
      */
     if (
       url.pathname === "/staff" ||
@@ -314,17 +317,16 @@ export default {
       }
 
       /*
-       * The session exists, so the user is allowed
-       * to receive the Staff Portal application.
+       * A valid session exists.
        *
-       * Current role/membership verification is
-       * performed by /api/auth/me.
+       * Serve the React SPA entry point rather
+       * than looking for a physical /staff file.
        */
-      return env.ASSETS.fetch(request);
+      return serveSpa(env, request);
     }
 
     /*
-     * START DISCORD OAUTH
+     * START DISCORD LOGIN
      */
     if (url.pathname === "/api/auth/discord") {
       return startDiscordLogin();
@@ -700,7 +702,7 @@ export default {
     }
 
     /*
-     * NORMAL PUBLIC WEBSITE REQUEST
+     * PUBLIC WEBSITE
      */
     return env.ASSETS.fetch(request);
   }
