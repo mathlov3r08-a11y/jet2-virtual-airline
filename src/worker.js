@@ -60,14 +60,13 @@ function getCookie(request, name) {
   return null;
 }
 
-function makeCookie(name, value, maxAge) {
+function makeCookie(name, value) {
   return [
     `${name}=${encodeURIComponent(value)}`,
     "Path=/",
     "HttpOnly",
     "Secure",
-    "SameSite=Lax",
-    `Max-Age=${maxAge}`
+    "SameSite=Lax"
   ].join("; ");
 }
 
@@ -554,20 +553,19 @@ export default {
        * Staff Portal.
        */
 
-      return redirect(
-        "/staff",
-        [
-          makeCookie(
-            "jet2_session",
-            sessionId,
-            60 * 60 * 24 * 7
-          ),
+     return redirect(
+  "/staff",
+  [
+    makeCookie(
+      "jet2_session",
+      sessionId
+    ),
 
-          clearCookie(
-            "jet2_oauth_state"
-          )
-        ]
-      );
+    clearCookie(
+      "jet2_oauth_state"
+    )
+  ]
+);
     }
 
     /*
