@@ -16,16 +16,19 @@ function json(data, status = 200) {
 }
 
 function redirect(url, cookies = []) {
+  const headers = new Headers({
+    Location: url
+  });
+
+  if (cookies.length > 0) {
+    for (const cookie of cookies) {
+      headers.append("Set-Cookie", cookie);
+    }
+  }
+
   return new Response(null, {
     status: 302,
-    headers: {
-      Location: url,
-      ...(cookies.length > 0
-        ? {
-            "Set-Cookie": cookies
-          }
-        : {})
-    }
+    headers
   });
 }
 
@@ -237,83 +240,107 @@ async function writeAuditLog(
     .run();
 }
 
+function startDiscordLogin() {
+  const state = randomId();
+
+  const discordUrl = new URL(
+    "https://discord.com/oauth2/authorize"
+  );
+
+  discordUrl.searchParams.set(
+    "client_id",
+    DISCORD_CLIENT_ID
+  );
+
+  discordUrl.searchParams.set(
+    "response_type",
+    "code"
+  );
+
+  discordUrl.searchParams.set(
+    "redirect_uri",
+    DISCORD_REDIRECT_URI
+  );
+
+  discordUrl.searchParams.set(
+    "scope",
+    "identify guilds guilds.members.read"
+  );
+
+  discordUrl.searchParams.set(
+    "state",
+    state
+  );
+
+  return redirect(
+    discordUrl.toString(),
+    [
+      makeCookie(
+        "jet2_oauth_state",
+        state,
+        600
+      )
+    ]
+  );
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     /*
-     * ---------------------------------------------------------
-     * DISCORD LOGIN
-     * ---------------------------------------------------------
+     * STAFF PORTAL GATE
+     *
+     * Anyone visiting /staff must have a valid
+     * Jet2 session. Otherwise they are sent
+     * directly to Discord authentication.
      */
-
-    if (url.pathname === "/api/auth/discord") {
-      const state = randomId();
-
-      const discordUrl = new URL(
-        "https://discord.com/oauth2/authorize"
+    if (
+      url.pathname === "/staff" ||
+      url.pathname.startsWith("/staff/")
+    ) {
+      const sessionId = getCookie(
+        request,
+        "jet2_session"
       );
 
-      discordUrl.searchParams.set(
-        "client_id",
-        DISCORD_CLIENT_ID
+      const session = await getSession(
+        env.DB,
+        sessionId
       );
 
-      discordUrl.searchParams.set(
-        "response_type",
-        "code"
-      );
-
-      discordUrl.searchParams.set(
-        "redirect_uri",
-        DISCORD_REDIRECT_URI
-      );
+      if (!session) {
+        return startDiscordLogin();
+      }
 
       /*
-       * We intentionally keep the scopes you configured:
+       * The session exists, so the user is allowed
+       * to receive the Staff Portal application.
        *
-       * identify
-       * guilds
-       * guilds.members.read
-       *
-       * The bot is separately installed in the Jet2 server
-       * and is the authoritative source for server membership
-       * and roles.
+       * Current role/membership verification is
+       * performed by /api/auth/me.
        */
-      discordUrl.searchParams.set(
-        "scope",
-        "identify guilds guilds.members.read"
-      );
-
-      discordUrl.searchParams.set(
-        "state",
-        state
-      );
-
-      return redirect(
-        discordUrl.toString(),
-        [
-          makeCookie(
-            "jet2_oauth_state",
-            state,
-            600
-          )
-        ]
-      );
+      return env.ASSETS.fetch(request);
     }
 
     /*
-     * ---------------------------------------------------------
-     * DISCORD CALLBACK
-     * ---------------------------------------------------------
+     * START DISCORD OAUTH
      */
+    if (url.pathname === "/api/auth/discord") {
+      return startDiscordLogin();
+    }
 
+    /*
+     * DISCORD OAUTH CALLBACK
+     */
     if (
       url.pathname ===
       "/api/auth/discord/callback"
     ) {
       const code = url.searchParams.get("code");
-      const returnedState = url.searchParams.get("state");
+      const returnedState =
+        url.searchParams.get("state");
+
       const savedState = getCookie(
         request,
         "jet2_oauth_state"
@@ -322,7 +349,8 @@ export default {
       if (!code) {
         return json(
           {
-            error: "Discord did not provide an authorization code."
+            error:
+              "Discord did not provide an authorization code."
           },
           400
         );
@@ -331,7 +359,8 @@ export default {
       if (!returnedState || !savedState) {
         return json(
           {
-            error: "Missing OAuth state."
+            error:
+              "Missing OAuth state."
           },
           400
         );
@@ -340,15 +369,12 @@ export default {
       if (returnedState !== savedState) {
         return json(
           {
-            error: "OAuth state verification failed."
+            error:
+              "OAuth state verification failed."
           },
           400
         );
       }
-
-      /*
-       * Exchange the Discord authorization code.
-       */
 
       const tokenResponse = await fetch(
         "https://discord.com/api/v10/oauth2/token",
@@ -359,11 +385,17 @@ export default {
               "application/x-www-form-urlencoded"
           },
           body: new URLSearchParams({
-            client_id: DISCORD_CLIENT_ID,
+            client_id:
+              DISCORD_CLIENT_ID,
+
             client_secret:
               env.DISCORD_CLIENT_SECRET,
-            grant_type: "authorization_code",
+
+            grant_type:
+              "authorization_code",
+
             code,
+
             redirect_uri:
               DISCORD_REDIRECT_URI
           })
@@ -373,7 +405,8 @@ export default {
       if (!tokenResponse.ok) {
         return json(
           {
-            error: "Discord authorization failed."
+            error:
+              "Discord authorization failed."
           },
           502
         );
@@ -392,10 +425,6 @@ export default {
         );
       }
 
-      /*
-       * Get the Discord account.
-       */
-
       let discordUser;
 
       try {
@@ -412,11 +441,6 @@ export default {
           502
         );
       }
-
-      /*
-       * Verify Jet2 | PTFS membership using the
-       * authentication bot.
-       */
 
       let jet2Member;
 
@@ -449,10 +473,6 @@ export default {
         );
       }
 
-      /*
-       * Retrieve the server's role list.
-       */
-
       let jet2Roles;
 
       try {
@@ -470,19 +490,11 @@ export default {
         );
       }
 
-      /*
-       * Determine the user's highest server role.
-       */
-
       const highestRole =
         getHighestRole(
           jet2Member,
           jet2Roles
         );
-
-      /*
-       * Create or update the local D1 user.
-       */
 
       await env.DB.prepare(
         `
@@ -525,19 +537,11 @@ export default {
         );
       }
 
-      /*
-       * Create a secure server-side session.
-       */
-
       const sessionId =
         await createSession(
           env.DB,
           user.id
         );
-
-      /*
-       * Record the successful login.
-       */
 
       await writeAuditLog(
         env.DB,
@@ -548,19 +552,14 @@ export default {
         {
           username:
             discordUser.username,
+
           highest_role:
             highestRole?.name ?? null,
+
           role_ids:
             jet2Member.roles ?? []
         }
       );
-
-      /*
-       * Send the user to the Staff Portal.
-       *
-       * The Discord OAuth access token is NEVER
-       * sent to the browser.
-       */
 
       return redirect(
         "/staff",
@@ -570,6 +569,7 @@ export default {
             sessionId,
             60 * 60 * 24 * 7
           ),
+
           clearCookie(
             "jet2_oauth_state"
           )
@@ -578,11 +578,8 @@ export default {
     }
 
     /*
-     * ---------------------------------------------------------
-     * CURRENT USER
-     * ---------------------------------------------------------
+     * CURRENT AUTHENTICATED USER
      */
-
     if (url.pathname === "/api/auth/me") {
       const sessionId =
         getCookie(
@@ -601,12 +598,6 @@ export default {
           authenticated: false
         });
       }
-
-      /*
-       * Re-check the user's current Discord membership
-       * and roles so the portal doesn't permanently trust
-       * an old login.
-       */
 
       let jet2Member;
 
@@ -659,14 +650,18 @@ export default {
 
       return json({
         authenticated: true,
+
         user: {
           discordUserId:
             session.discord_user_id,
+
           username:
             session.discord_username,
+
           rank:
             highestRole?.name ??
             "Staff Member",
+
           roleIds:
             jet2Member.roles ?? []
         }
@@ -674,11 +669,8 @@ export default {
     }
 
     /*
-     * ---------------------------------------------------------
-     * LOGOUT
-     * ---------------------------------------------------------
+     * LOG OUT
      */
-
     if (url.pathname === "/api/auth/logout") {
       const sessionId =
         getCookie(
@@ -708,11 +700,8 @@ export default {
     }
 
     /*
-     * ---------------------------------------------------------
-     * STATIC WEBSITE
-     * ---------------------------------------------------------
+     * NORMAL PUBLIC WEBSITE REQUEST
      */
-
     return env.ASSETS.fetch(request);
   }
 };
