@@ -282,10 +282,12 @@ function startDiscordLogin() {
   );
 }
 
-async function serveSpa(env, request) {
+async function serveIndex(env) {
   const indexRequest = new Request(
-    new URL("/index.html", request.url),
-    request
+    "https://jet2-ptfs.local/index.html",
+    {
+      method: "GET"
+    }
   );
 
   return env.ASSETS.fetch(indexRequest);
@@ -296,45 +298,21 @@ export default {
     const url = new URL(request.url);
 
     /*
-     * STAFF PORTAL AUTHENTICATION GATE
+     * =========================================================
+     * DISCORD LOGIN
+     * =========================================================
      */
-    if (
-      url.pathname === "/staff" ||
-      url.pathname.startsWith("/staff/")
-    ) {
-      const sessionId = getCookie(
-        request,
-        "jet2_session"
-      );
 
-      const session = await getSession(
-        env.DB,
-        sessionId
-      );
-
-      if (!session) {
-        return startDiscordLogin();
-      }
-
-      /*
-       * A valid session exists.
-       *
-       * Serve the React SPA entry point rather
-       * than looking for a physical /staff file.
-       */
-      return serveSpa(env, request);
-    }
-
-    /*
-     * START DISCORD LOGIN
-     */
     if (url.pathname === "/api/auth/discord") {
       return startDiscordLogin();
     }
 
     /*
+     * =========================================================
      * DISCORD OAUTH CALLBACK
+     * =========================================================
      */
+
     if (
       url.pathname ===
       "/api/auth/discord/callback"
@@ -498,6 +476,10 @@ export default {
           jet2Roles
         );
 
+      /*
+       * Create or update the Jet2 user.
+       */
+
       await env.DB.prepare(
         `
           INSERT INTO users (
@@ -539,6 +521,10 @@ export default {
         );
       }
 
+      /*
+       * Create the authenticated session.
+       */
+
       const sessionId =
         await createSession(
           env.DB,
@@ -563,6 +549,11 @@ export default {
         }
       );
 
+      /*
+       * Send the browser directly to the
+       * Staff Portal.
+       */
+
       return redirect(
         "/staff",
         [
@@ -580,8 +571,11 @@ export default {
     }
 
     /*
-     * CURRENT AUTHENTICATED USER
+     * =========================================================
+     * CURRENT USER
+     * =========================================================
      */
+
     if (url.pathname === "/api/auth/me") {
       const sessionId =
         getCookie(
@@ -671,8 +665,11 @@ export default {
     }
 
     /*
-     * LOG OUT
+     * =========================================================
+     * LOGOUT
+     * =========================================================
      */
+
     if (url.pathname === "/api/auth/logout") {
       const sessionId =
         getCookie(
@@ -702,8 +699,45 @@ export default {
     }
 
     /*
-     * PUBLIC WEBSITE
+     * =========================================================
+     * STAFF PORTAL
+     * =========================================================
      */
+
+    if (
+      url.pathname === "/staff" ||
+      url.pathname.startsWith("/staff/")
+    ) {
+      const sessionId =
+        getCookie(
+          request,
+          "jet2_session"
+        );
+
+      const session =
+        await getSession(
+          env.DB,
+          sessionId
+        );
+
+      if (!session) {
+        return startDiscordLogin();
+      }
+
+      /*
+       * Valid session:
+       * serve the React application's index.html.
+       */
+
+      return serveIndex(env);
+    }
+
+    /*
+     * =========================================================
+     * PUBLIC WEBSITE
+     * =========================================================
+     */
+
     return env.ASSETS.fetch(request);
   }
 };
