@@ -304,19 +304,9 @@ function resolveRoles(discordRoleIds) {
     (a, b) => b.level - a.level
   );
 
-  /*
-   * A staff member can belong to multiple departments.
-   * We display the two highest department positions.
-   */
   const selectedPositions =
     positions.slice(0, 2);
 
-  /*
-   * Anyone with a recognized main hierarchy
-   * rank has portal access.
-   *
-   * Department positions also grant access.
-   */
   const portalAccess =
     Boolean(highestRank) ||
     selectedPositions.length > 0;
@@ -327,7 +317,6 @@ function resolveRoles(discordRoleIds) {
     permissions.add("portal.view");
   }
 
-  /* Coordinator and above */
   if (
     highestRank &&
     highestRank.level >= 3
@@ -335,7 +324,6 @@ function resolveRoles(discordRoleIds) {
     permissions.add("staff.view");
   }
 
-  /* General Manager and above */
   if (
     highestRank &&
     highestRank.level >= 4
@@ -386,7 +374,6 @@ function resolveRoles(discordRoleIds) {
     permissions.add("announcements.view");
   }
 
-  /* BOD */
   if (
     highestRank &&
     highestRank.level >= 5
@@ -397,7 +384,6 @@ function resolveRoles(discordRoleIds) {
     permissions.add("admin.review");
   }
 
-  /* Leadership */
   if (
     highestRank &&
     highestRank.level >= 6
@@ -1302,8 +1288,27 @@ async function handleStaffPage(
     );
   }
 
+  /*
+   * The staff portal is a React SPA.
+   *
+   * /staff is not a physical static file, so we must
+   * serve the application's index.html and let
+   * React Router handle /staff and /staff/*.
+   */
+  const indexRequest =
+    new Request(
+      new URL(
+        "/index.html",
+        request.url
+      ),
+      {
+        method: "GET",
+        headers: request.headers
+      }
+    );
+
   return env.ASSETS.fetch(
-    request
+    indexRequest
   );
 }
 
