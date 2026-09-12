@@ -6,201 +6,244 @@ import {
 const GUILD_ID = "1394355545858773003";
 
 /* =========================================================
-   JET2 MAIN RANK HIERARCHY
+   DISCORD ROLE IDs
+   ========================================================= */
+
+const ROLES = {
+  /* Main hierarchy */
+  leadership: "1547692976245964800",
+  bod: "1545812500417740920",
+  generalManager: "1547399646643494922",
+  coordinator: "1547398671019016232",
+  associate: "1545825580333932717",
+  managementIntern: "1545820873305497600",
+
+  /* Leadership positions */
+  chm: "1545811527787876452",
+  vchm: "1545812090684711053",
+  ceo: "1545812226579890186",
+  coo: "1545812334759518259",
+
+  /* Board of Directors */
+  cdo: "1545819084166275182",
+  cto: "1545819157310742568",
+  chro: "1545819240127402004",
+  cao: "1545819326819344415",
+  cmo: "1545819483111956550",
+  com: "1545819561905889440",
+  cxo: "1545819672203763753",
+
+  /* Human Resources */
+  hrm: "1547400202380648509",
+  shro: "1547398878221832193",
+  hro: "1545825239198605452",
+  hrt: "1545820531192762529",
+
+  /* Public Relations */
+  prm: "1547400008926761020",
+  sprc: "1547399111861469234",
+  prc: "1545825281774719147",
+  pri: "1545820634712506488",
+
+  /* Marketing */
+  bm: "1547400151721709628",
+  sms: "1547399234972553317",
+  ms: "1545825405737369702",
+  mi: "1545820742183165952",
+
+  /* Flight Operations */
+  som: "1547399962575372378",
+  fom: "1545825156360831125",
+  foi: "1545820391346536541"
+};
+
+/* =========================================================
+   MAIN RANKS
    ========================================================= */
 
 const MAIN_RANKS = [
   {
     name: "Leadership",
     level: 6,
-    portalAccess: true,
-    roles: [
-      ["ROLE_LEADERSHIP_CHM", "Chairman"],
-      ["ROLE_LEADERSHIP_VCHM", "Vice Chairman"],
-      ["ROLE_LEADERSHIP_CEO", "Chief Executive Officer"],
-      ["ROLE_LEADERSHIP_COO", "Chief Operating Officer"]
+    roleIds: [
+      ROLES.leadership,
+      ROLES.chm,
+      ROLES.vchm,
+      ROLES.ceo,
+      ROLES.coo
     ]
   },
-
   {
     name: "Board of Directors",
     level: 5,
-    portalAccess: true,
-    roles: [
-      ["ROLE_BOD_CDO", "Chief Development Officer"],
-      ["ROLE_BOD_CTO", "Chief Technology Officer"],
-      ["ROLE_BOD_CHRO", "Chief Human Resources Officer"],
-      ["ROLE_BOD_CAO", "Chief Administrative Officer"],
-      ["ROLE_BOD_CMO", "Chief Marketing Officer"],
-      ["ROLE_BOD_COM", "Chief Operations Manager"],
-      ["ROLE_BOD_CXO", "Chief Experience Officer"]
+    roleIds: [
+      ROLES.bod,
+      ROLES.cdo,
+      ROLES.cto,
+      ROLES.chro,
+      ROLES.cao,
+      ROLES.cmo,
+      ROLES.com,
+      ROLES.cxo
     ]
   },
-
   {
     name: "General Manager",
     level: 4,
-    portalAccess: true,
-    roles: [
-      ["ROLE_GENERAL_MANAGER", "General Manager"]
+    roleIds: [
+      ROLES.generalManager
     ]
   },
-
   {
     name: "Coordinator",
     level: 3,
-    portalAccess: true,
-    roles: [
-      ["ROLE_COORDINATOR", "Coordinator"]
+    roleIds: [
+      ROLES.coordinator
     ]
   },
-
   {
     name: "Associate",
     level: 2,
-    portalAccess: true,
-    roles: [
-      ["ROLE_ASSOCIATE", "Associate"]
+    roleIds: [
+      ROLES.associate
     ]
   },
-
   {
     name: "Management Intern",
     level: 1,
-    portalAccess: true,
-    roles: [
-      ["ROLE_MANAGEMENT_INTERN", "Management Intern"]
+    roleIds: [
+      ROLES.managementIntern
     ]
   }
 ];
+
+/* =========================================================
+   LEADERSHIP TITLES
+   ========================================================= */
+
+const LEADERSHIP_TITLES = {
+  [ROLES.chm]: "Chairman",
+  [ROLES.vchm]: "Vice Chairman",
+  [ROLES.ceo]: "Chief Executive Officer",
+  [ROLES.coo]: "Chief Operating Officer",
+
+  [ROLES.cdo]: "Chief Development Officer",
+  [ROLES.cto]: "Chief Technology Officer",
+  [ROLES.chro]: "Chief Human Resources Officer",
+  [ROLES.cao]: "Chief Administrative Officer",
+  [ROLES.cmo]: "Chief Marketing Officer",
+  [ROLES.com]: "Chief Operations Manager",
+  [ROLES.cxo]: "Chief Experience Officer"
+};
 
 /* =========================================================
    DEPARTMENT POSITIONS
    ========================================================= */
 
 const DEPARTMENT_POSITIONS = [
-  /* Human Resources */
-
   {
-    env: "ROLE_HR_HRM",
+    roleId: ROLES.hrm,
     position: "Human Resources Manager",
     department: "Human Resources",
     rank: "General Manager",
     level: 4
   },
-
   {
-    env: "ROLE_HR_SHRO",
+    roleId: ROLES.shro,
     position: "Senior Human Resources Officer",
     department: "Human Resources",
     rank: "Coordinator",
     level: 3
   },
-
   {
-    env: "ROLE_HR_HRO",
+    roleId: ROLES.hro,
     position: "Human Resources Officer",
     department: "Human Resources",
     rank: "Associate",
     level: 2
   },
-
   {
-    env: "ROLE_HR_HRT",
+    roleId: ROLES.hrt,
     position: "Human Resources Trainee",
     department: "Human Resources",
     rank: "Management Intern",
     level: 1
   },
 
-  /* Public Relations & Marketing */
-
   {
-    env: "ROLE_PRM_PRM",
+    roleId: ROLES.prm,
     position: "PR Manager",
     department: "Public Relations & Marketing",
     rank: "General Manager",
     level: 4
   },
-
   {
-    env: "ROLE_PRM_SPRC",
+    roleId: ROLES.sprc,
     position: "Senior PR Coordinator",
     department: "Public Relations & Marketing",
     rank: "Coordinator",
     level: 3
   },
-
   {
-    env: "ROLE_PRM_PRC",
+    roleId: ROLES.prc,
     position: "PR Coordinator",
     department: "Public Relations & Marketing",
     rank: "Associate",
     level: 2
   },
-
   {
-    env: "ROLE_PRM_PRI",
+    roleId: ROLES.pri,
     position: "PR Intern",
     department: "Public Relations & Marketing",
     rank: "Management Intern",
     level: 1
   },
 
-  /* Marketing */
-
   {
-    env: "ROLE_MARKETING_BM",
+    roleId: ROLES.bm,
     position: "Brand Manager",
     department: "Marketing",
     rank: "General Manager",
     level: 4
   },
-
   {
-    env: "ROLE_MARKETING_SMS",
+    roleId: ROLES.sms,
     position: "Senior Marketing Specialist",
     department: "Marketing",
     rank: "Coordinator",
     level: 3
   },
-
   {
-    env: "ROLE_MARKETING_MS",
+    roleId: ROLES.ms,
     position: "Marketing Specialist",
     department: "Marketing",
     rank: "Associate",
     level: 2
   },
-
   {
-    env: "ROLE_MARKETING_MI",
+    roleId: ROLES.mi,
     position: "Marketing Intern",
     department: "Marketing",
     rank: "Management Intern",
     level: 1
   },
 
-  /* Flight Operations */
-
   {
-    env: "ROLE_FLIGHT_OPS_SOM",
+    roleId: ROLES.som,
     position: "Senior Operations Manager",
     department: "Flight Operations",
     rank: "General Manager",
     level: 4
   },
-
   {
-    env: "ROLE_FLIGHT_OPS_FOM",
+    roleId: ROLES.fom,
     position: "Flight Operations Manager",
     department: "Flight Operations",
     rank: "Coordinator",
     level: 3
   },
-
   {
-    env: "ROLE_FLIGHT_OPS_FOI",
+    roleId: ROLES.foi,
     position: "Flight Operations Intern",
     department: "Flight Operations",
     rank: "Management Intern",
@@ -212,49 +255,39 @@ const DEPARTMENT_POSITIONS = [
    ROLE RESOLUTION
    ========================================================= */
 
-function resolveRoles(env, discordRoleIds) {
+function resolveRoles(discordRoleIds) {
   const roleSet = new Set(discordRoleIds);
 
   let highestRank = null;
 
   for (const rank of MAIN_RANKS) {
-    for (const [envName, title] of rank.roles) {
-      const discordRoleId = env[envName];
+    const matchedRole = rank.roleIds.find((roleId) =>
+      roleSet.has(roleId)
+    );
 
-      if (!discordRoleId) {
-        continue;
-      }
+    if (!matchedRole) {
+      continue;
+    }
 
-      if (!roleSet.has(discordRoleId)) {
-        continue;
-      }
-
-      if (!highestRank || rank.level > highestRank.level) {
-        highestRank = {
-          name: rank.name,
-          title,
-          level: rank.level,
-          portalAccess: rank.portalAccess,
-          discordRoleId
-        };
-      }
+    if (
+      !highestRank ||
+      rank.level > highestRank.level
+    ) {
+      highestRank = {
+        name: rank.name,
+        level: rank.level,
+        discordRoleId: matchedRole,
+        title:
+          LEADERSHIP_TITLES[matchedRole] ||
+          rank.name
+      };
     }
   }
-
-  /*
-   * Resolve every department position the user currently has.
-   */
 
   const positions = [];
 
   for (const position of DEPARTMENT_POSITIONS) {
-    const discordRoleId = env[position.env];
-
-    if (!discordRoleId) {
-      continue;
-    }
-
-    if (!roleSet.has(discordRoleId)) {
+    if (!roleSet.has(position.roleId)) {
       continue;
     }
 
@@ -263,35 +296,30 @@ function resolveRoles(env, discordRoleIds) {
       department: position.department,
       rank: position.rank,
       level: position.level,
-      discordRoleId
+      discordRoleId: position.roleId
     });
   }
 
-  /*
-   * A user can have up to two main department positions.
-   *
-   * If more than two are somehow assigned, the two highest
-   * positions are selected for the staff profile.
-   */
-
-  positions.sort((a, b) => b.level - a.level);
-
-  const selectedPositions = positions.slice(0, 2);
+  positions.sort(
+    (a, b) => b.level - a.level
+  );
 
   /*
-   * Portal access.
-   *
-   * Main organizational ranks are portal eligible.
-   * Department positions are also portal eligible.
+   * A staff member can belong to multiple departments.
+   * We display the two highest department positions.
    */
+  const selectedPositions =
+    positions.slice(0, 2);
 
+  /*
+   * Anyone with a recognized main hierarchy
+   * rank has portal access.
+   *
+   * Department positions also grant access.
+   */
   const portalAccess =
-    Boolean(highestRank?.portalAccess) ||
+    Boolean(highestRank) ||
     selectedPositions.length > 0;
-
-  /* =======================================================
-     BASE PERMISSIONS
-     ======================================================= */
 
   const permissions = new Set();
 
@@ -299,41 +327,49 @@ function resolveRoles(env, discordRoleIds) {
     permissions.add("portal.view");
   }
 
-  /* =======================================================
-     STAFF MANAGEMENT
-     ======================================================= */
-
-  if (highestRank && highestRank.level >= 3) {
+  /* Coordinator and above */
+  if (
+    highestRank &&
+    highestRank.level >= 3
+  ) {
     permissions.add("staff.view");
   }
 
-  if (highestRank && highestRank.level >= 4) {
+  /* General Manager and above */
+  if (
+    highestRank &&
+    highestRank.level >= 4
+  ) {
     permissions.add("staff.manage");
   }
 
-  /* =======================================================
-     DEPARTMENT PERMISSIONS
-     ======================================================= */
+  const hasFlightOps =
+    selectedPositions.some(
+      (position) =>
+        position.department ===
+        "Flight Operations"
+    );
 
-  const hasFlightOps = selectedPositions.some(
-    (position) =>
-      position.department === "Flight Operations"
-  );
+  const hasHR =
+    selectedPositions.some(
+      (position) =>
+        position.department ===
+        "Human Resources"
+    );
 
-  const hasHR = selectedPositions.some(
-    (position) =>
-      position.department === "Human Resources"
-  );
+  const hasPR =
+    selectedPositions.some(
+      (position) =>
+        position.department ===
+        "Public Relations & Marketing"
+    );
 
-  const hasPRM = selectedPositions.some(
-    (position) =>
-      position.department === "Public Relations & Marketing"
-  );
-
-  const hasMarketing = selectedPositions.some(
-    (position) =>
-      position.department === "Marketing"
-  );
+  const hasMarketing =
+    selectedPositions.some(
+      (position) =>
+        position.department ===
+        "Marketing"
+    );
 
   if (hasFlightOps) {
     permissions.add("flights.view");
@@ -346,26 +382,26 @@ function resolveRoles(env, discordRoleIds) {
     permissions.add("staff.view");
   }
 
-  if (hasPRM || hasMarketing) {
+  if (hasPR || hasMarketing) {
     permissions.add("announcements.view");
   }
 
-  /* =======================================================
-     BOD PERMISSIONS
-     ======================================================= */
-
-  if (highestRank && highestRank.level >= 5) {
+  /* BOD */
+  if (
+    highestRank &&
+    highestRank.level >= 5
+  ) {
     permissions.add("flights.manage");
     permissions.add("staff.manage");
     permissions.add("announcements.manage");
     permissions.add("admin.review");
   }
 
-  /* =======================================================
-     LEADERSHIP PERMISSIONS
-     ======================================================= */
-
-  if (highestRank && highestRank.level >= 6) {
+  /* Leadership */
+  if (
+    highestRank &&
+    highestRank.level >= 6
+  ) {
     permissions.add("admin.owner");
   }
 
@@ -373,7 +409,9 @@ function resolveRoles(env, discordRoleIds) {
     portalAccess,
     highestRank,
     positions: selectedPositions,
-    permissions: [...permissions]
+    permissions: [
+      ...permissions
+    ]
   };
 }
 
@@ -381,26 +419,34 @@ function resolveRoles(env, discordRoleIds) {
    DISCORD API
    ========================================================= */
 
-async function discordBotRequest(env, endpoint) {
+async function discordBotRequest(
+  env,
+  endpoint
+) {
   return fetch(
     `https://discord.com/api/v10${endpoint}`,
     {
       headers: {
-        Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`
+        Authorization:
+          `Bot ${env.DISCORD_BOT_TOKEN}`
       }
     }
   );
 }
 
-async function getDiscordUser(accessToken) {
-  const response = await fetch(
-    "https://discord.com/api/v10/users/@me",
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
+async function getDiscordUser(
+  accessToken
+) {
+  const response =
+    await fetch(
+      "https://discord.com/api/v10/users/@me",
+      {
+        headers: {
+          Authorization:
+            `Bearer ${accessToken}`
+        }
       }
-    }
-  );
+    );
 
   if (!response.ok) {
     throw new Error(
@@ -411,11 +457,15 @@ async function getDiscordUser(accessToken) {
   return response.json();
 }
 
-async function getGuildMember(env, userId) {
-  const response = await discordBotRequest(
-    env,
-    `/guilds/${GUILD_ID}/members/${userId}`
-  );
+async function getGuildMember(
+  env,
+  userId
+) {
+  const response =
+    await discordBotRequest(
+      env,
+      `/guilds/${GUILD_ID}/members/${userId}`
+    );
 
   if (response.status === 404) {
     return null;
@@ -431,12 +481,18 @@ async function getGuildMember(env, userId) {
 }
 
 /* =========================================================
-   DISCORD AVATAR
+   AVATAR
    ========================================================= */
 
-function getDiscordAvatarUrl(discordUser) {
+function getDiscordAvatarUrl(
+  discordUser
+) {
   if (discordUser.avatar) {
-    return `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=256`;
+    return (
+      `https://cdn.discordapp.com/avatars/` +
+      `${discordUser.id}/` +
+      `${discordUser.avatar}.png?size=256`
+    );
   }
 
   const avatarIndex =
@@ -444,14 +500,20 @@ function getDiscordAvatarUrl(discordUser) {
       BigInt(discordUser.id) >> 22n
     ) % 6;
 
-  return `https://cdn.discordapp.com/embed/avatars/${avatarIndex}.png`;
+  return (
+    `https://cdn.discordapp.com/embed/avatars/` +
+    `${avatarIndex}.png`
+  );
 }
 
 /* =========================================================
    COOKIES
    ========================================================= */
 
-function makeCookie(name, value) {
+function makeCookie(
+  name,
+  value
+) {
   return [
     `${name}=${encodeURIComponent(value)}`,
     "Path=/",
@@ -461,7 +523,9 @@ function makeCookie(name, value) {
   ].join("; ");
 }
 
-function clearCookie(name) {
+function clearCookie(
+  name
+) {
   return [
     `${name}=`,
     "Path=/",
@@ -472,7 +536,10 @@ function clearCookie(name) {
   ].join("; ");
 }
 
-function getCookie(request, name) {
+function getCookie(
+  request,
+  name
+) {
   const cookieHeader =
     request.headers.get("Cookie");
 
@@ -483,7 +550,9 @@ function getCookie(request, name) {
   const cookies =
     cookieHeader
       .split(";")
-      .map((cookie) => cookie.trim());
+      .map((cookie) =>
+        cookie.trim()
+      );
 
   for (const cookie of cookies) {
     const separator =
@@ -494,13 +563,20 @@ function getCookie(request, name) {
     }
 
     const key =
-      cookie.substring(0, separator);
+      cookie.substring(
+        0,
+        separator
+      );
 
     const value =
-      cookie.substring(separator + 1);
+      cookie.substring(
+        separator + 1
+      );
 
     if (key === name) {
-      return decodeURIComponent(value);
+      return decodeURIComponent(
+        value
+      );
     }
   }
 
@@ -511,16 +587,22 @@ function getCookie(request, name) {
    RANDOM TOKEN
    ========================================================= */
 
-function randomToken(bytes = 32) {
+function randomToken(
+  bytes = 32
+) {
   const array =
     new Uint8Array(bytes);
 
-  crypto.getRandomValues(array);
+  crypto.getRandomValues(
+    array
+  );
 
   return Array.from(array)
     .map(
       (byte) =>
-        byte.toString(16).padStart(2, "0")
+        byte
+          .toString(16)
+          .padStart(2, "0")
     )
     .join("");
 }
@@ -529,7 +611,10 @@ function randomToken(bytes = 32) {
    SESSION
    ========================================================= */
 
-async function getSession(env, request) {
+async function getSession(
+  env,
+  request
+) {
   const sessionId =
     getCookie(
       request,
@@ -570,7 +655,10 @@ async function getSession(env, request) {
    RESPONSES
    ========================================================= */
 
-function json(data, status = 200) {
+function json(
+  data,
+  status = 200
+) {
   return new Response(
     JSON.stringify(data),
     {
@@ -583,7 +671,10 @@ function json(data, status = 200) {
   );
 }
 
-function redirect(url, extraHeaders = []) {
+function redirect(
+  url,
+  extraHeaders = []
+) {
   const headers =
     new Headers();
 
@@ -592,14 +683,23 @@ function redirect(url, extraHeaders = []) {
     url
   );
 
-  for (const [name, value] of extraHeaders) {
-    headers.append(name, value);
+  for (
+    const [name, value]
+    of extraHeaders
+  ) {
+    headers.append(
+      name,
+      value
+    );
   }
 
-  return new Response(null, {
-    status: 302,
-    headers
-  });
+  return new Response(
+    null,
+    {
+      status: 302,
+      headers
+    }
+  );
 }
 
 /* =========================================================
@@ -666,10 +766,14 @@ async function handleDiscordCallback(
     new URL(request.url);
 
   const code =
-    url.searchParams.get("code");
+    url.searchParams.get(
+      "code"
+    );
 
   const returnedState =
-    url.searchParams.get("state");
+    url.searchParams.get(
+      "state"
+    );
 
   const storedState =
     getCookie(
@@ -753,7 +857,6 @@ async function handleDiscordCallback(
 
   const resolved =
     resolveRoles(
-      env,
       member.roles || []
     );
 
@@ -807,7 +910,9 @@ async function handleDiscordCallback(
         LIMIT 1
       `
     )
-      .bind(discordUser.id)
+      .bind(
+        discordUser.id
+      )
       .first();
 
   if (!user) {
@@ -875,6 +980,10 @@ async function handleDiscordCallback(
           resolved.highestRank?.name ||
           null,
 
+        title:
+          resolved.highestRank?.title ||
+          null,
+
         positions:
           resolved.positions.map(
             (position) =>
@@ -939,7 +1048,9 @@ async function handleMe(
         LIMIT 1
       `
     )
-      .bind(session.user_id)
+      .bind(
+        session.user_id
+      )
       .first();
 
   if (!user) {
@@ -950,10 +1061,6 @@ async function handleMe(
       401
     );
   }
-
-  /*
-   * Re-check Discord membership and roles.
-   */
 
   const member =
     await getGuildMember(
@@ -974,7 +1081,6 @@ async function handleMe(
 
   const resolved =
     resolveRoles(
-      env,
       member.roles || []
     );
 
@@ -989,28 +1095,14 @@ async function handleMe(
     );
   }
 
-  /*
-   * Use the current Discord avatar directly.
-   */
+  const avatarUrl =
+    getDiscordAvatarUrl({
+      id:
+        user.discord_user_id,
 
-  const discordAvatar =
-    member.user?.avatar;
-
-  let avatarUrl;
-
-  if (discordAvatar) {
-    avatarUrl =
-      `https://cdn.discordapp.com/avatars/${user.discord_user_id}/${discordAvatar}.png?size=256`;
-  } else {
-    const avatarIndex =
-      Number(
-        BigInt(user.discord_user_id) >>
-          22n
-      ) % 6;
-
-    avatarUrl =
-      `https://cdn.discordapp.com/embed/avatars/${avatarIndex}.png`;
-  }
+      avatar:
+        member.user?.avatar
+    });
 
   return json({
     authenticated: true,
@@ -1024,10 +1116,6 @@ async function handleMe(
 
       avatarUrl
     },
-
-    /*
-     * Internal organizational rank.
-     */
 
     rank:
       resolved.highestRank
@@ -1043,10 +1131,6 @@ async function handleMe(
           }
         : null,
 
-    /*
-     * User-facing department positions.
-     */
-
     positions:
       resolved.positions.map(
         (position) => ({
@@ -1060,10 +1144,6 @@ async function handleMe(
             position.rank
         })
       ),
-
-    /*
-     * Centralized permission list.
-     */
 
     permissions:
       resolved.permissions
@@ -1091,7 +1171,9 @@ async function handleLogout(
         WHERE id = ?
       `
     )
-      .bind(session.sessionId)
+      .bind(
+        session.sessionId
+      )
       .run();
 
     await env.DB.prepare(
@@ -1162,7 +1244,9 @@ async function handleStaffPage(
         LIMIT 1
       `
     )
-      .bind(session.user_id)
+      .bind(
+        session.user_id
+      )
       .first();
 
   if (!user) {
@@ -1178,10 +1262,6 @@ async function handleStaffPage(
       ]
     );
   }
-
-  /*
-   * Check current Discord membership.
-   */
 
   const member =
     await getGuildMember(
@@ -1203,13 +1283,8 @@ async function handleStaffPage(
     );
   }
 
-  /*
-   * Check current portal eligibility.
-   */
-
   const resolved =
     resolveRoles(
-      env,
       member.roles || []
     );
 
@@ -1245,10 +1320,6 @@ export default {
       new URL(request.url);
 
     try {
-      /* -----------------------------
-         Discord OAuth
-         ----------------------------- */
-
       if (
         request.method === "GET" &&
         url.pathname ===
@@ -1268,10 +1339,6 @@ export default {
         );
       }
 
-      /* -----------------------------
-         Current authenticated user
-         ----------------------------- */
-
       if (
         request.method === "GET" &&
         url.pathname ===
@@ -1283,10 +1350,6 @@ export default {
         );
       }
 
-      /* -----------------------------
-         Logout
-         ----------------------------- */
-
       if (
         request.method === "POST" &&
         url.pathname ===
@@ -1297,10 +1360,6 @@ export default {
           request
         );
       }
-
-      /* -----------------------------
-         Protected Staff Portal
-         ----------------------------- */
 
       if (
         request.method === "GET" &&
@@ -1316,10 +1375,6 @@ export default {
           request
         );
       }
-
-      /* -----------------------------
-         Public website
-         ----------------------------- */
 
       return env.ASSETS.fetch(
         request
