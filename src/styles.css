@@ -131,23 +131,74 @@ a {
   color: #c9141b;
 }
 
+/* Compact staff profile */
+
 .sidebar-footer {
   margin-top: auto;
-  padding: 16px 12px;
+  padding: 12px 8px 4px;
   border-top: 1px solid #e6e9ec;
 }
 
-.sidebar-footer span {
-  display: block;
-  font-size: 12px;
-  font-weight: 700;
+.staff-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 10px;
 }
 
-.sidebar-footer small {
+.staff-avatar,
+.staff-avatar-placeholder {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 50%;
+}
+
+.staff-avatar {
   display: block;
-  margin-top: 4px;
-  color: #89939c;
-  line-height: 1.4;
+  object-fit: cover;
+}
+
+.staff-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #d71920;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.staff-user-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.staff-user-info strong {
+  display: block;
+  overflow: hidden;
+  color: #17202a;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.staff-user-meta {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: #7a858f;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* Main content */
