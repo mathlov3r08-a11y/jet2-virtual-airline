@@ -66,25 +66,31 @@ const MAIN_RANKS = [
     name: "Leadership",
     level: 6,
     roleIds: [
-      ROLES.leadership,
+      /* Individual leadership ranks come first */
       ROLES.chm,
       ROLES.vchm,
       ROLES.ceo,
-      ROLES.coo
+      ROLES.coo,
+
+      /* Generic leadership role comes last */
+      ROLES.leadership
     ]
   },
   {
     name: "Board of Directors",
     level: 5,
     roleIds: [
-      ROLES.bod,
+      /* Individual BOD ranks come first */
       ROLES.cdo,
       ROLES.cto,
       ROLES.chro,
       ROLES.cao,
       ROLES.cmo,
       ROLES.com,
-      ROLES.cxo
+      ROLES.cxo,
+
+      /* Generic BOD role comes last */
+      ROLES.bod
     ]
   },
   {
@@ -118,22 +124,22 @@ const MAIN_RANKS = [
 ];
 
 /* =========================================================
-   LEADERSHIP TITLES
+   INDIVIDUAL RANK TITLES
    ========================================================= */
 
 const LEADERSHIP_TITLES = {
-  [ROLES.chm]: "Chairman",
-  [ROLES.vchm]: "Vice Chairman",
-  [ROLES.ceo]: "Chief Executive Officer",
-  [ROLES.coo]: "Chief Operating Officer",
+  [ROLES.chm]: "CHM",
+  [ROLES.vchm]: "VCHM",
+  [ROLES.ceo]: "CEO",
+  [ROLES.coo]: "COO",
 
-  [ROLES.cdo]: "Chief Development Officer",
-  [ROLES.cto]: "Chief Technology Officer",
-  [ROLES.chro]: "Chief Human Resources Officer",
-  [ROLES.cao]: "Chief Administrative Officer",
-  [ROLES.cmo]: "Chief Marketing Officer",
-  [ROLES.com]: "Chief Operations Manager",
-  [ROLES.cxo]: "Chief Experience Officer"
+  [ROLES.cdo]: "CDO",
+  [ROLES.cto]: "CTO",
+  [ROLES.chro]: "CHRO",
+  [ROLES.cao]: "CAO",
+  [ROLES.cmo]: "CMO",
+  [ROLES.com]: "COM",
+  [ROLES.cxo]: "CXO"
 };
 
 /* =========================================================
@@ -261,8 +267,8 @@ function resolveRoles(discordRoleIds) {
   let highestRank = null;
 
   for (const rank of MAIN_RANKS) {
-    const matchedRole = rank.roleIds.find((roleId) =>
-      roleSet.has(roleId)
+    const matchedRole = rank.roleIds.find(
+      (roleId) => roleSet.has(roleId)
     );
 
     if (!matchedRole) {
