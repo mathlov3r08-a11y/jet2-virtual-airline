@@ -31,6 +31,268 @@ async function getCurrentUser() {
 }
 
 /* =========================================================
+   DISPLAY HELPERS
+   ========================================================= */
+
+function getRankTitle(rank) {
+  const titleMap = {
+    CHM: "Chairman",
+    VCHM: "Vice Chairman",
+    CEO: "Chief Executive Officer",
+    COO: "Chief Operating Officer",
+
+    CDO: "Chief Development Officer",
+    CTO: "Chief Technology Officer",
+    CHRO: "Chief Human Resources Officer",
+    CAO: "Chief Administrative Officer",
+    CMO: "Chief Marketing Officer",
+    COM: "Chief Operations Manager",
+    CXO: "Chief Experience Officer",
+
+    GM: "General Manager",
+    C: "Coordinator",
+    A: "Associate",
+    MI: "Management Intern",
+
+    HRM: "Human Resources Manager",
+    SHRO: "Senior Human Resources Officer",
+    HRO: "Human Resources Officer",
+    HRT: "Human Resources Trainee",
+
+    PRM: "Public Relations Manager",
+    SPRC: "Senior Public Relations Coordinator",
+    PRC: "Public Relations Coordinator",
+    PRI: "Public Relations Intern",
+
+    BM: "Brand Manager",
+    SMS: "Senior Marketing Specialist",
+    MS: "Marketing Specialist",
+    MI: "Management Intern",
+
+    SOM: "Senior Operations Manager",
+    FOM: "Flight Operations Manager",
+    FOI: "Flight Operations Intern"
+  };
+
+  const rawTitle =
+    rank?.title ||
+    rank?.name ||
+    "Staff";
+
+  return (
+    titleMap[rawTitle] ||
+    rawTitle
+  );
+}
+
+function getOrganizationalUnit(
+  rank,
+  positions
+) {
+  if (
+    positions &&
+    positions.length > 0
+  ) {
+    return positions
+      .map(
+        (position) =>
+          position.department
+      )
+      .filter(Boolean)
+      .filter(
+        (department, index, array) =>
+          array.indexOf(department) ===
+          index
+      );
+  }
+
+  const rawRank =
+    rank?.title ||
+    rank?.name ||
+    "";
+
+  if (
+    [
+      "CHM",
+      "VCHM",
+      "CEO",
+      "COO"
+    ].includes(rawRank)
+  ) {
+    return ["Leadership"];
+  }
+
+  if (
+    [
+      "CDO",
+      "CTO",
+      "CHRO",
+      "CAO",
+      "CMO",
+      "COM",
+      "CXO"
+    ].includes(rawRank)
+  ) {
+    return ["Board of Directors"];
+  }
+
+  return [];
+}
+
+/* =========================================================
+   MODULE ACCESS
+   ========================================================= */
+
+function getAvailableModules(
+  permissions = {}
+) {
+  const modules = [];
+
+  if (
+    permissions.portal?.view ||
+    permissions.portal === true
+  ) {
+    modules.push({
+      label: "Dashboard",
+      path: "/staff"
+    });
+  }
+
+  if (
+    permissions.flights?.view ||
+    permissions.flights?.create ||
+    permissions.flights?.edit ||
+    permissions.flights?.manage
+  ) {
+    modules.push({
+      label: "Flight Operations",
+      path: "/staff/flights"
+    });
+  }
+
+  if (
+    permissions.staff?.view ||
+    permissions.staff?.manage
+  ) {
+    modules.push({
+      label: "Staff Management",
+      path: "/staff/staff"
+    });
+  }
+
+  if (
+    permissions.training?.view ||
+    permissions.training?.manage
+  ) {
+    modules.push({
+      label: "Training",
+      path: "/staff/training"
+    });
+  }
+
+  if (
+    permissions.careers?.view ||
+    permissions.careers?.manage
+  ) {
+    modules.push({
+      label: "Careers",
+      path: "/staff"
+    });
+  }
+
+  if (
+    permissions.announcements?.view ||
+    permissions.announcements?.manage
+  ) {
+    modules.push({
+      label: "Announcements",
+      path: "/staff"
+    });
+  }
+
+  if (
+    permissions.admin?.review ||
+    permissions.admin?.owner
+  ) {
+    modules.push({
+      label: "Administration",
+      path: "/staff"
+    });
+  }
+
+  return modules;
+}
+
+/* =========================================================
+   COLLAPSIBLE SIDEBAR SECTION
+   ========================================================= */
+
+function SidebarSection({
+  title,
+  children,
+  defaultOpen = false
+}) {
+  const [open, setOpen] =
+    useState(defaultOpen);
+
+  return (
+    <div className="sidebar-section">
+      <button
+        type="button"
+        className="sidebar-section-toggle"
+        onClick={() =>
+          setOpen((value) => !value)
+        }
+        aria-expanded={open}
+      >
+        <span>
+          {title}
+        </span>
+
+        <span
+          className={
+            open
+              ? "sidebar-chevron open"
+              : "sidebar-chevron"
+          }
+        >
+          ›
+        </span>
+      </button>
+
+      {open && (
+        <div className="sidebar-section-content">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =========================================================
+   LOGOUT
+   ========================================================= */
+
+async function handleLogout() {
+  try {
+    await fetch(
+      "/api/auth/logout",
+      {
+        method: "POST",
+        credentials: "include"
+      }
+    );
+  } catch (error) {
+    console.error(
+      "Logout request failed:",
+      error
+    );
+  } finally {
+    window.location.href = "/";
+  }
+}
+
+/* =========================================================
    STAFF LAYOUT
    ========================================================= */
 
@@ -61,12 +323,25 @@ function StaffLayout({
 
   const user = authData?.user;
   const rank = authData?.rank;
-  const positions = authData?.positions || [];
+  const positions =
+    authData?.positions || [];
 
-  const primaryDepartment =
-    positions.length > 0
-      ? positions[0].department
-      : null;
+  const permissions =
+    authData?.permissions || {};
+
+  const rankTitle =
+    getRankTitle(rank);
+
+  const departments =
+    getOrganizationalUnit(
+      rank,
+      positions
+    );
+
+  const availableModules =
+    getAvailableModules(
+      permissions
+    );
 
   return (
     <div className="staff-shell">
@@ -92,53 +367,198 @@ function StaffLayout({
             OPERATIONS
           </span>
 
-          {navigation.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={
-                location.pathname === item.path
-                  ? "nav-link active"
-                  : "nav-link"
-              }
-            >
-              {item.label}
-            </Link>
-          ))}
+          {navigation.map(
+            (item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={
+                  location.pathname ===
+                  item.path
+                    ? "nav-link active"
+                    : "nav-link"
+                }
+              >
+                {item.label}
+              </Link>
+            )
+          )}
         </nav>
 
         <div className="sidebar-footer">
           {user ? (
-            <div className="staff-user">
-              {user.avatarUrl ? (
-                <img
-                  src={user.avatarUrl}
-                  alt=""
-                  className="staff-avatar"
-                />
-              ) : (
-                <div className="staff-avatar-placeholder">
-                  {user.username
-                    ?.charAt(0)
-                    ?.toUpperCase() || "?"}
+            <>
+              <div className="staff-user">
+                {user.avatarUrl ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt=""
+                    className="staff-avatar"
+                  />
+                ) : (
+                  <div className="staff-avatar-placeholder">
+                    {user.username
+                      ?.charAt(0)
+                      ?.toUpperCase() ||
+                      "?"}
+                  </div>
+                )}
+
+                <div className="staff-user-info">
+                  <strong>
+                    {user.username}
+                  </strong>
+
+                  <span className="staff-user-meta">
+                    {rankTitle}
+                  </span>
+
+                  {departments.length >
+                    0 && (
+                    <span className="staff-user-department">
+                      {departments.join(
+                        " · "
+                      )}
+                    </span>
+                  )}
                 </div>
-              )}
-
-              <div className="staff-user-info">
-                <strong>
-                  {user.username}
-                </strong>
-
-                <span className="staff-user-meta">
-                  {rank?.title ||
-                    rank?.name ||
-                    "Staff"}
-                  {primaryDepartment
-                    ? ` · ${primaryDepartment}`
-                    : ""}
-                </span>
               </div>
-            </div>
+
+              <div className="sidebar-details">
+                <SidebarSection
+                  title="Modules Available"
+                >
+                  {availableModules.length >
+                  0 ? (
+                    <div className="module-list">
+                      {availableModules.map(
+                        (module) => (
+                          <Link
+                            key={
+                              module.label
+                            }
+                            to={
+                              module.path
+                            }
+                            className="module-item"
+                          >
+                            <span className="module-check">
+                              ✓
+                            </span>
+
+                            <span>
+                              {
+                                module.label
+                              }
+                            </span>
+                          </Link>
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <span className="sidebar-empty">
+                      No modules available.
+                    </span>
+                  )}
+                </SidebarSection>
+
+                <SidebarSection
+                  title="Departments"
+                >
+                  {departments.length >
+                  0 ? (
+                    <div className="sidebar-value-list">
+                      {departments.map(
+                        (department) => (
+                          <span
+                            key={
+                              department
+                            }
+                            className="sidebar-value"
+                          >
+                            {
+                              department
+                            }
+                          </span>
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <span className="sidebar-empty">
+                      No department assignments.
+                    </span>
+                  )}
+                </SidebarSection>
+
+                <SidebarSection
+                  title="Rank Information"
+                >
+                  <div className="rank-info">
+                    <div>
+                      <span>
+                        Rank
+                      </span>
+
+                      <strong>
+                        {rankTitle}
+                      </strong>
+                    </div>
+
+                    {rank?.level && (
+                      <div>
+                        <span>
+                          Hierarchy Level
+                        </span>
+
+                        <strong>
+                          {rank.level}
+                        </strong>
+                      </div>
+                    )}
+                  </div>
+                </SidebarSection>
+
+                <SidebarSection
+                  title="Account & Security"
+                >
+                  <div className="security-info">
+                    <div>
+                      <span>
+                        Discord Account
+                      </span>
+
+                      <strong className="security-good">
+                        Connected
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>
+                        Staff Session
+                      </span>
+
+                      <strong className="security-good">
+                        Active
+                      </strong>
+                    </div>
+                  </div>
+                </SidebarSection>
+              </div>
+
+              <button
+                type="button"
+                className="logout-button"
+                onClick={
+                  handleLogout
+                }
+              >
+                <span>
+                  ↪
+                </span>
+
+                Log Out
+              </button>
+            </>
           ) : (
             <>
               <span>
@@ -196,7 +616,8 @@ function Home() {
         </h1>
 
         <p>
-          The public Jet2 | PTFS website is being built.
+          The public Jet2 | PTFS website is
+          being built.
         </p>
 
         <Link
@@ -219,17 +640,17 @@ function StaffDashboard({
 }) {
   const user = authData?.user;
   const rank = authData?.rank;
-  const positions = authData?.positions || [];
+  const positions =
+    authData?.positions || [];
 
-  const departmentNames = positions
-    .map(
-      (position) =>
-        position.department
-    )
-    .filter(
-      (department, index, array) =>
-        array.indexOf(department) === index
+  const departmentNames =
+    getOrganizationalUnit(
+      rank,
+      positions
     );
+
+  const rankTitle =
+    getRankTitle(rank);
 
   return (
     <div>
@@ -241,13 +662,15 @@ function StaffDashboard({
 
           <h2>
             Hello{" "}
-            {user?.username || "Staff Member"}!
+            {user?.username ||
+              "Staff Member"}!
           </h2>
 
           <p>
-            Welcome to the Jet2 | PTFS Staff Portal.
-            Manage flights, staff, training and airline
-            operations from one place.
+            Welcome to the Jet2 | PTFS Staff
+            Portal. Manage flights, staff,
+            training and airline operations
+            from one place.
           </p>
         </div>
 
@@ -272,8 +695,8 @@ function StaffDashboard({
             </h3>
 
             <p>
-              Create and manage flights, hosts,
-              schedules and boarding.
+              Create and manage flights,
+              hosts, schedules and boarding.
             </p>
           </div>
 
@@ -296,8 +719,8 @@ function StaffDashboard({
             </h3>
 
             <p>
-              Manage staff records, roles and
-              operational access.
+              Manage staff records, roles
+              and operational access.
             </p>
           </div>
 
@@ -320,8 +743,8 @@ function StaffDashboard({
             </h3>
 
             <p>
-              Track training programmes, progress
-              and certifications.
+              Track training programmes,
+              progress and certifications.
             </p>
           </div>
 
@@ -341,7 +764,8 @@ function StaffDashboard({
             </h3>
 
             <p>
-              Review and manage staff applications.
+              Review and manage staff
+              applications.
             </p>
           </div>
 
@@ -371,7 +795,8 @@ function StaffDashboard({
             </span>
 
             <strong className="online-text">
-              {user?.username || "Verified"}
+              {user?.username ||
+                "Verified"}
             </strong>
           </div>
 
@@ -381,9 +806,7 @@ function StaffDashboard({
             </span>
 
             <strong className="online-text">
-              {rank?.title ||
-                rank?.name ||
-                "Staff"}
+              {rankTitle}
             </strong>
           </div>
 
@@ -393,7 +816,8 @@ function StaffDashboard({
             </span>
 
             <strong className="online-text">
-              {departmentNames.length > 0
+              {departmentNames.length >
+              0
                 ? departmentNames.join(
                     " · "
                   )
@@ -432,8 +856,9 @@ function StaffFlights() {
       </h2>
 
       <p>
-        Flight creation, hosts, aircraft, boarding
-        and operational controls will live here.
+        Flight creation, hosts, aircraft,
+        boarding and operational controls
+        will live here.
       </p>
     </div>
   );
@@ -455,8 +880,8 @@ function StaffMembers() {
       </h2>
 
       <p>
-        Staff records, roles and permissions will
-        live here.
+        Staff records, roles and permissions
+        will live here.
       </p>
     </div>
   );
@@ -478,8 +903,8 @@ function StaffTraining() {
       </h2>
 
       <p>
-        Training programmes, requirements and
-        progress will live here.
+        Training programmes, requirements
+        and progress will live here.
       </p>
     </div>
   );
@@ -555,8 +980,8 @@ function StaffPortal() {
           </h1>
 
           <p>
-            Checking your Discord account and
-            Staff Portal permissions.
+            Checking your Discord account
+            and Staff Portal permissions.
           </p>
 
           <div className="dashboard-badge">
