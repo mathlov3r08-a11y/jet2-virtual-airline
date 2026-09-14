@@ -68,11 +68,6 @@ function StaffLayout({
       ? positions[0].department
       : null;
 
-  const primaryPosition =
-    positions.length > 0
-      ? positions[0].position
-      : null;
-
   return (
     <div className="staff-shell">
       <aside className="staff-sidebar">
@@ -134,23 +129,14 @@ function StaffLayout({
                   {user.username}
                 </strong>
 
-                {rank?.title ? (
-                  <span>
-                    {rank.title}
-                  </span>
-                ) : rank?.name ? (
-                  <span>
-                    {rank.name}
-                  </span>
-                ) : null}
-
-                {primaryDepartment && (
-                  <small>
-                    {primaryPosition
-                      ? `${primaryPosition} · ${primaryDepartment}`
-                      : primaryDepartment}
-                  </small>
-                )}
+                <span className="staff-user-meta">
+                  {rank?.title ||
+                    rank?.name ||
+                    "Staff"}
+                  {primaryDepartment
+                    ? ` · ${primaryDepartment}`
+                    : ""}
+                </span>
               </div>
             </div>
           ) : (
