@@ -599,6 +599,17 @@ function randomToken(
     .join("");
 }
 
+
+/* =========================================================
+   OWNER SECURITY
+   ========================================================= */
+
+const OWNER_SESSION_COOKIE = "jet2_owner_session";
+const OWNER_SESSION_MINUTES = 30;
+const OWNER_MAX_FAILED_ATTEMPTS = 5;
+const OWNER_LOCKOUT_MINUTES = 15;
+const TOTP_STEP_SECONDS = 30;
+
 /* =========================================================
    SESSION
    ========================================================= */
@@ -649,16 +660,23 @@ async function getSession(
 
 function json(
   data,
-  status = 200
+  status = 200,
+  extraHeaders = []
 ) {
+  const headers = new Headers({
+    "Content-Type":
+      "application/json; charset=utf-8"
+  });
+
+  for (const [name, value] of extraHeaders) {
+    headers.append(name, value);
+  }
+
   return new Response(
     JSON.stringify(data),
     {
       status,
-      headers: {
-        "Content-Type":
-          "application/json; charset=utf-8"
-      }
+      headers
     }
   );
 }
@@ -1206,6 +1224,820 @@ async function handleLogout(
   );
 }
 
+
+/* =========================================================
+   OWNER SECURITY HELPERS
+   ========================================================= */
+
+function isOwnerIdentity(env, user) {
+  return Boolean(
+    env.OWNER_DISCORD_ID &&
+    user &&
+    user.discord_user_id === env.OWNER_DISCORD_ID
+  );
+}
+
+async function getOwnerIdentity(env, request) {
+  const session = await getSession(env, request);
+
+  if (!session) {
+    return null;
+  }
+
+  const user = await env.DB.prepare(
+    `
+      SELECT
+        id,
+        discord_user_id,
+        discord_username
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+    `
+  )
+    .bind(session.user_id)
+    .first();
+
+  if (!user || !isOwnerIdentity(env, user)) {
+    return null;
+  }
+
+  const member = await getGuildMember(
+    env,
+    user.discord_user_id
+  );
+
+  if (!member) {
+    return null;
+  }
+
+  const resolved = resolveRoles(member.roles || []);
+
+  if (
+    !resolved.portalAccess ||
+    !resolved.permissions.includes("admin.owner")
+  ) {
+    return null;
+  }
+
+  return {
+    session,
+    user,
+    member,
+    resolved
+  };
+}
+
+async function getOwnerSession(env, request) {
+  const ownerSessionId = getCookie(
+    request,
+    OWNER_SESSION_COOKIE
+  );
+
+  if (!ownerSessionId) {
+    return null;
+  }
+
+  const ownerSession = await env.DB.prepare(
+    `
+      SELECT
+        id,
+        user_id,
+        tier,
+        expires_at
+      FROM privileged_sessions
+      WHERE id = ?
+        AND tier = 'owner'
+        AND expires_at > datetime('now')
+      LIMIT 1
+    `
+  )
+    .bind(ownerSessionId)
+    .first();
+
+  if (!ownerSession) {
+    return null;
+  }
+
+  await env.DB.prepare(
+    `
+      UPDATE privileged_sessions
+      SET last_seen_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `
+  )
+    .bind(ownerSessionId)
+    .run();
+
+  return {
+    ...ownerSession,
+    sessionId: ownerSessionId
+  };
+}
+
+function base64ToBytes(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+function constantTimeEqualBytes(a, b) {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  let difference = 0;
+
+  for (let i = 0; i < a.length; i += 1) {
+    difference |= a[i] ^ b[i];
+  }
+
+  return difference === 0;
+}
+
+async function verifyOwnerPassword(password, storedHash) {
+  if (!password || !storedHash) {
+    return false;
+  }
+
+  const parts = storedHash.split("$");
+
+  if (parts.length !== 4 || parts[0] !== "pbkdf2") {
+    return false;
+  }
+
+  const iterations = Number(parts[1]);
+
+  if (
+    !Number.isInteger(iterations) ||
+    iterations <= 0 ||
+    !parts[2] ||
+    !parts[3]
+  ) {
+    return false;
+  }
+
+  let salt;
+  let expected;
+
+  try {
+    salt = base64ToBytes(parts[2]);
+    expected = base64ToBytes(parts[3]);
+  } catch {
+    return false;
+  }
+
+  const passwordKey = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    {
+      name: "PBKDF2"
+    },
+    false,
+    ["deriveBits"]
+  );
+
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations,
+      hash: "SHA-256"
+    },
+    passwordKey,
+    expected.length * 8
+  );
+
+  return constantTimeEqualBytes(
+    new Uint8Array(derivedBits),
+    expected
+  );
+}
+
+function base32ToBytes(value) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const normalized = String(value || "")
+    .replace(/\s+/g, "")
+    .replace(/=+$/g, "")
+    .toUpperCase();
+
+  let buffer = 0;
+  let bits = 0;
+  const output = [];
+
+  for (const character of normalized) {
+    const index = alphabet.indexOf(character);
+
+    if (index === -1) {
+      throw new Error("Invalid Base32 secret.");
+    }
+
+    buffer = (buffer << 5) | index;
+    bits += 5;
+
+    if (bits >= 8) {
+      bits -= 8;
+      output.push((buffer >> bits) & 0xff);
+    }
+  }
+
+  return new Uint8Array(output);
+}
+
+function numberToCounterBytes(counter) {
+  const bytes = new Uint8Array(8);
+  const view = new DataView(bytes.buffer);
+  const high = Math.floor(counter / 0x100000000);
+  const low = counter >>> 0;
+
+  view.setUint32(0, high);
+  view.setUint32(4, low);
+
+  return bytes;
+}
+
+async function generateTotpCode(secret, counter) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    base32ToBytes(secret),
+    {
+      name: "HMAC",
+      hash: "SHA-1"
+    },
+    false,
+    ["sign"]
+  );
+
+  const digest = new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+      numberToCounterBytes(counter)
+    )
+  );
+
+  const offset = digest[digest.length - 1] & 0x0f;
+
+  const binaryCode =
+    ((digest[offset] & 0x7f) << 24) |
+    (digest[offset + 1] << 16) |
+    (digest[offset + 2] << 8) |
+    digest[offset + 3];
+
+  return String(binaryCode % 1000000).padStart(6, "0");
+}
+
+async function verifyOwnerTotp(secret, code, lastTotpStep) {
+  if (!secret || !/^\d{6}$/.test(String(code || ""))) {
+    return null;
+  }
+
+  const currentStep = Math.floor(
+    Date.now() / 1000 / TOTP_STEP_SECONDS
+  );
+
+  const submittedCode = String(code);
+  const lastStep =
+    lastTotpStep === null || lastTotpStep === undefined
+      ? null
+      : Number(lastTotpStep);
+
+  for (const offset of [-1, 0, 1]) {
+    const step = currentStep + offset;
+
+    if (lastStep !== null && step <= lastStep) {
+      continue;
+    }
+
+    const expectedCode = await generateTotpCode(
+      secret,
+      step
+    );
+
+    if (expectedCode === submittedCode) {
+      return step;
+    }
+  }
+
+  return null;
+}
+
+async function getOwnerSecurityState(env) {
+  let state = await env.DB.prepare(
+    `
+      SELECT
+        id,
+        failed_attempts,
+        locked_until,
+        last_totp_step
+      FROM owner_security_state
+      WHERE id = 1
+      LIMIT 1
+    `
+  ).first();
+
+  if (!state) {
+    await env.DB.prepare(
+      `
+        INSERT OR IGNORE INTO owner_security_state (id)
+        VALUES (1)
+      `
+    ).run();
+
+    state = await env.DB.prepare(
+      `
+        SELECT
+          id,
+          failed_attempts,
+          locked_until,
+          last_totp_step
+        FROM owner_security_state
+        WHERE id = 1
+        LIMIT 1
+      `
+    ).first();
+  }
+
+  return state;
+}
+
+function isOwnerLocked(state) {
+  if (!state?.locked_until) {
+    return false;
+  }
+
+  return new Date(
+    `${state.locked_until.replace(" ", "T")}Z`
+  ).getTime() > Date.now();
+}
+
+async function registerOwnerFailure(env) {
+  const state = await getOwnerSecurityState(env);
+  const failedAttempts =
+    Number(state?.failed_attempts || 0) + 1;
+
+  if (failedAttempts >= OWNER_MAX_FAILED_ATTEMPTS) {
+    await env.DB.prepare(
+      `
+        UPDATE owner_security_state
+        SET
+          failed_attempts = 0,
+          locked_until = datetime('now', ?) ,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1
+      `
+    )
+      .bind(`+${OWNER_LOCKOUT_MINUTES} minutes`)
+      .run();
+
+    return true;
+  }
+
+  await env.DB.prepare(
+    `
+      UPDATE owner_security_state
+      SET
+        failed_attempts = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `
+  )
+    .bind(failedAttempts)
+    .run();
+
+  return false;
+}
+
+async function clearOwnerFailures(env) {
+  await env.DB.prepare(
+    `
+      UPDATE owner_security_state
+      SET
+        failed_attempts = 0,
+        locked_until = NULL,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `
+  ).run();
+}
+
+async function createOwnerSession(env, userId) {
+  const sessionId = randomToken(32);
+
+  await env.DB.prepare(
+    `
+      INSERT INTO privileged_sessions (
+        id,
+        user_id,
+        tier,
+        expires_at
+      )
+      VALUES (
+        ?,
+        ?,
+        'owner',
+        datetime('now', ?)
+      )
+    `
+  )
+    .bind(
+      sessionId,
+      userId,
+      `+${OWNER_SESSION_MINUTES} minutes`
+    )
+    .run();
+
+  return sessionId;
+}
+
+async function handleOwnerStatus(env, request) {
+  const identity = await getOwnerIdentity(env, request);
+
+  if (!identity) {
+    return json(
+      {
+        eligible: false,
+        authenticated: false
+      },
+      403
+    );
+  }
+
+  const ownerSession = await getOwnerSession(env, request);
+
+  if (!ownerSession || ownerSession.user_id !== identity.user.id) {
+    return json({
+      eligible: true,
+      authenticated: false
+    });
+  }
+
+  return json({
+    eligible: true,
+    authenticated: true,
+    expiresAt: ownerSession.expires_at
+  });
+}
+
+async function handleOwnerLogin(env, request) {
+  const identity = await getOwnerIdentity(env, request);
+
+  if (!identity) {
+    return json(
+      {
+        error: "Owner access is not available for this account."
+      },
+      403
+    );
+  }
+
+  if (request.method !== "POST") {
+    return json(
+      {
+        error: "Method not allowed."
+      },
+      405
+    );
+  }
+
+  const state = await getOwnerSecurityState(env);
+
+  if (isOwnerLocked(state)) {
+    return json(
+      {
+        error: "Owner security is temporarily locked. Please try again later."
+      },
+      429
+    );
+  }
+
+  let body;
+
+  try {
+    body = await request.json();
+  } catch {
+    return json(
+      {
+        error: "Invalid request."
+      },
+      400
+    );
+  }
+
+  const password =
+    typeof body?.password === "string"
+      ? body.password
+      : "";
+
+  const totp =
+    typeof body?.totp === "string"
+      ? body.totp.trim()
+      : "";
+
+  let passwordValid = false;
+
+  try {
+    passwordValid = await verifyOwnerPassword(
+      password,
+      env.OWNER_PASSWORD_HASH
+    );
+  } catch (error) {
+    console.error("Owner password verification failed:", error);
+  }
+
+  if (!passwordValid) {
+    const locked = await registerOwnerFailure(env);
+
+    await env.DB.prepare(
+      `
+        INSERT INTO audit_logs (
+          user_id,
+          action,
+          target_type,
+          target_id,
+          details
+        )
+        VALUES (?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        identity.user.id,
+        "owner.login_failed",
+        "owner_security",
+        identity.user.discord_user_id,
+        JSON.stringify({
+          reason: "invalid_password",
+          locked
+        })
+      )
+      .run();
+
+    return json(
+      {
+        error: locked
+          ? "Owner security is temporarily locked. Please try again later."
+          : "Invalid owner credentials."
+      },
+      locked ? 429 : 401
+    );
+  }
+
+  const securityState = await getOwnerSecurityState(env);
+  let totpStep = null;
+
+  try {
+    totpStep = await verifyOwnerTotp(
+      env.OWNER_TOTP_SECRET,
+      totp,
+      securityState?.last_totp_step
+    );
+  } catch (error) {
+    console.error("Owner TOTP verification failed:", error);
+  }
+
+  if (totpStep === null) {
+    const locked = await registerOwnerFailure(env);
+
+    await env.DB.prepare(
+      `
+        INSERT INTO audit_logs (
+          user_id,
+          action,
+          target_type,
+          target_id,
+          details
+        )
+        VALUES (?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        identity.user.id,
+        "owner.login_failed",
+        "owner_security",
+        identity.user.discord_user_id,
+        JSON.stringify({
+          reason: "invalid_totp",
+          locked
+        })
+      )
+      .run();
+
+    return json(
+      {
+        error: locked
+          ? "Owner security is temporarily locked. Please try again later."
+          : "Invalid owner credentials."
+      },
+      locked ? 429 : 401
+    );
+  }
+
+  await env.DB.prepare(
+    `
+      UPDATE owner_security_state
+      SET
+        failed_attempts = 0,
+        locked_until = NULL,
+        last_totp_step = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `
+  )
+    .bind(totpStep)
+    .run();
+
+  await env.DB.prepare(
+    `
+      DELETE FROM privileged_sessions
+      WHERE user_id = ?
+         OR expires_at <= datetime('now')
+    `
+  )
+    .bind(identity.user.id)
+    .run();
+
+  const sessionId = await createOwnerSession(
+    env,
+    identity.user.id
+  );
+
+  await env.DB.prepare(
+    `
+      INSERT INTO audit_logs (
+        user_id,
+        action,
+        target_type,
+        target_id,
+        details
+      )
+      VALUES (?, ?, ?, ?, ?)
+    `
+  )
+    .bind(
+      identity.user.id,
+      "owner.login",
+      "privileged_session",
+      sessionId,
+      JSON.stringify({
+        tier: "owner"
+      })
+    )
+    .run();
+
+  return json(
+    {
+      authenticated: true
+    },
+    200,
+    [
+      [
+        "Set-Cookie",
+        makeCookie(OWNER_SESSION_COOKIE, sessionId)
+      ]
+    ]
+  );
+}
+
+async function handleOwnerMe(env, request) {
+  const identity = await getOwnerIdentity(env, request);
+
+  if (!identity) {
+    return json(
+      {
+        authenticated: false
+      },
+      403
+    );
+  }
+
+  const ownerSession = await getOwnerSession(env, request);
+
+  if (!ownerSession || ownerSession.user_id !== identity.user.id) {
+    return json(
+      {
+        authenticated: false
+      },
+      401
+    );
+  }
+
+  return json({
+    authenticated: true,
+    tier: "owner",
+    expiresAt: ownerSession.expires_at,
+    user: {
+      id: identity.user.discord_user_id,
+      username: identity.user.discord_username,
+      avatarUrl: getDiscordAvatarUrl({
+        id: identity.user.discord_user_id,
+        avatar: identity.member.user?.avatar
+      })
+    },
+    rank: identity.resolved.highestRank
+      ? {
+          name: identity.resolved.highestRank.name,
+          title: identity.resolved.highestRank.title,
+          level: identity.resolved.highestRank.level
+        }
+      : null
+  });
+}
+
+async function handleOwnerLogout(env, request) {
+  const identity = await getOwnerIdentity(env, request);
+  const ownerSession = await getOwnerSession(env, request);
+
+  if (ownerSession) {
+    await env.DB.prepare(
+      `
+        DELETE FROM privileged_sessions
+        WHERE id = ?
+      `
+    )
+      .bind(ownerSession.sessionId)
+      .run();
+  }
+
+  if (identity) {
+    await env.DB.prepare(
+      `
+        INSERT INTO audit_logs (
+          user_id,
+          action,
+          target_type,
+          target_id
+        )
+        VALUES (?, ?, ?, ?)
+      `
+    )
+      .bind(
+        identity.user.id,
+        "owner.logout",
+        "privileged_session",
+        ownerSession?.sessionId || null
+      )
+      .run();
+  }
+
+  return json(
+    {
+      authenticated: false
+    },
+    200,
+    [
+      [
+        "Set-Cookie",
+        clearCookie(OWNER_SESSION_COOKIE)
+      ]
+    ]
+  );
+}
+
+async function requireOwnerSession(env, request) {
+  const identity = await getOwnerIdentity(env, request);
+
+  if (!identity) {
+    return null;
+  }
+
+  const ownerSession = await getOwnerSession(env, request);
+
+  if (
+    !ownerSession ||
+    ownerSession.user_id !== identity.user.id
+  ) {
+    return null;
+  }
+
+  return {
+    ...identity,
+    ownerSession
+  };
+}
+
+async function handleOwnerPage(env, request) {
+  const identity = await getOwnerIdentity(env, request);
+
+  if (!identity) {
+    return redirect("/staff");
+  }
+
+  const indexRequest = new Request(
+    new URL("/index.html", request.url),
+    {
+      method: "GET",
+      headers: request.headers
+    }
+  );
+
+  return env.ASSETS.fetch(indexRequest);
+}
+
 /* =========================================================
    STAFF PAGE PROTECTION
    ========================================================= */
@@ -1367,6 +2199,63 @@ export default {
           "/api/auth/logout"
       ) {
         return await handleLogout(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "GET" &&
+        url.pathname ===
+          "/api/owner/status"
+      ) {
+        return await handleOwnerStatus(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname ===
+          "/api/owner/login"
+      ) {
+        return await handleOwnerLogin(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "GET" &&
+        url.pathname ===
+          "/api/owner/me"
+      ) {
+        return await handleOwnerMe(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname ===
+          "/api/owner/logout"
+      ) {
+        return await handleOwnerLogout(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "GET" &&
+        (
+          url.pathname === "/staff/owner" ||
+          url.pathname.startsWith("/staff/owner/")
+        )
+      ) {
+        return await handleOwnerPage(
           env,
           request
         );
