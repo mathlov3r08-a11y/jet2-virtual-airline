@@ -910,6 +910,594 @@ function StaffTraining() {
   );
 }
 
+
+/* =========================================================
+   OWNER CONTROL ROOM
+   ========================================================= */
+
+async function getOwnerStatus() {
+  const response = await fetch("/api/owner/status", {
+    method: "GET",
+    credentials: "include"
+  });
+
+  let data = {};
+
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    ...data
+  };
+}
+
+async function loginOwner(password, totp) {
+  const response = await fetch("/api/owner/login", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      password,
+      totp
+    })
+  });
+
+  let data = {};
+
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    ...data
+  };
+}
+
+async function getOwnerMe() {
+  const response = await fetch("/api/owner/me", {
+    method: "GET",
+    credentials: "include"
+  });
+
+  let data = {};
+
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    ...data
+  };
+}
+
+async function logoutOwner() {
+  try {
+    await fetch("/api/owner/logout", {
+      method: "POST",
+      credentials: "include"
+    });
+  } catch (error) {
+    console.error("Owner logout request failed:", error);
+  }
+
+  window.location.href = "/staff";
+}
+
+function OwnerLoginScreen({
+  onAuthenticated
+}) {
+  const [password, setPassword] = useState("");
+  const [totp, setTotp] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+
+    if (submitting) {
+      return;
+    }
+
+    setError("");
+    setSubmitting(true);
+
+    try {
+      const result = await loginOwner(
+        password,
+        totp
+      );
+
+      if (!result.ok) {
+        setError(
+          result.error ||
+            "Invalid owner credentials."
+        );
+        return;
+      }
+
+      setPassword("");
+      setTotp("");
+      onAuthenticated();
+    } catch (requestError) {
+      console.error(
+        "Owner login request failed:",
+        requestError
+      );
+
+      setError(
+        "Unable to contact Owner Security. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="public-page">
+      <div
+        className="public-card"
+        style={{
+          maxWidth: "560px",
+          width: "100%"
+        }}
+      >
+        <span className="header-kicker">
+          JET2 | PTFS
+        </span>
+
+        <h1>
+          Owner Control Room
+        </h1>
+
+        <p>
+          This area requires a separate privileged
+          security check. Your Discord identity has
+          already been verified.
+        </p>
+
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            display: "grid",
+            gap: "16px",
+            marginTop: "24px",
+            textAlign: "left"
+          }}
+        >
+          <label
+            style={{
+              display: "grid",
+              gap: "7px"
+            }}
+          >
+            <span
+              style={{
+                fontWeight: 700
+              }}
+            >
+              Owner Password
+            </span>
+
+            <input
+              type="password"
+              value={password}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
+              autoComplete="current-password"
+              placeholder="Enter your Owner password"
+              disabled={submitting}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "12px 14px",
+                border: "1px solid #d9d9d9",
+                borderRadius: "10px",
+                fontSize: "16px"
+              }}
+            />
+          </label>
+
+          <label
+            style={{
+              display: "grid",
+              gap: "7px"
+            }}
+          >
+            <span
+              style={{
+                fontWeight: 700
+              }}
+            >
+              Authenticator Code
+            </span>
+
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={totp}
+              onChange={(event) =>
+                setTotp(
+                  event.target.value
+                    .replace(/\D/g, "")
+                    .slice(0, 6)
+                )
+              }
+              placeholder="6-digit code"
+              maxLength={6}
+              disabled={submitting}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "12px 14px",
+                border: "1px solid #d9d9d9",
+                borderRadius: "10px",
+                fontSize: "18px",
+                letterSpacing: "4px"
+              }}
+            />
+          </label>
+
+          {error && (
+            <div
+              role="alert"
+              style={{
+                padding: "12px 14px",
+                borderRadius: "10px",
+                background: "#fff1f1",
+                border: "1px solid #f0b8b8",
+                color: "#a40000",
+                fontWeight: 600
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={
+              submitting ||
+              !password ||
+              totp.length !== 6
+            }
+            style={{
+              border: "none",
+              cursor:
+                submitting ||
+                !password ||
+                totp.length !== 6
+                  ? "not-allowed"
+                  : "pointer",
+              opacity:
+                submitting ||
+                !password ||
+                totp.length !== 6
+                  ? 0.6
+                  : 1
+            }}
+          >
+            {submitting
+              ? "Verifying..."
+              : "Enter Owner Control Room"}
+          </button>
+        </form>
+
+        <div
+          style={{
+            marginTop: "22px",
+            paddingTop: "18px",
+            borderTop: "1px solid #eeeeee",
+            fontSize: "13px",
+            color: "#666666"
+          }}
+        >
+          <strong>Security:</strong> Owner sessions
+          expire after 30 minutes and are protected
+          separately from your normal Staff Portal
+          session.
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function OwnerControlRoom({
+  ownerData,
+  onLogout
+}) {
+  const username =
+    ownerData?.user?.username ||
+    "Owner";
+
+  const rankTitle =
+    getRankTitle(ownerData?.rank);
+
+  return (
+    <main className="public-page">
+      <div
+        className="public-card"
+        style={{
+          maxWidth: "900px",
+          width: "100%"
+        }}
+      >
+        <span className="header-kicker">
+          JET2 | PTFS
+        </span>
+
+        <h1>
+          Owner Control Room
+        </h1>
+
+        <p>
+          Welcome, {username}. Your privileged
+          Owner session is active.
+        </p>
+
+        <div
+          className="dashboard-grid"
+          style={{
+            marginTop: "28px"
+          }}
+        >
+          <div className="dashboard-card">
+            <span className="card-icon">
+              🔐
+            </span>
+
+            <div>
+              <h3>
+                Owner Security
+              </h3>
+
+              <p>
+                Password and authenticator verification
+                completed successfully.
+              </p>
+            </div>
+          </div>
+
+          <div className="dashboard-card">
+            <span className="card-icon">
+              ◉
+            </span>
+
+            <div>
+              <h3>
+                Verified Identity
+              </h3>
+
+              <p>
+                {username} · {rankTitle}
+              </p>
+            </div>
+          </div>
+
+          <div className="dashboard-card">
+            <span className="card-icon">
+              ⚙
+            </span>
+
+            <div>
+              <h3>
+                Administration
+              </h3>
+
+              <p>
+                Owner-only administration controls
+                will be added here.
+              </p>
+            </div>
+          </div>
+
+          <div className="dashboard-card">
+            <span className="card-icon">
+              📋
+            </span>
+
+            <div>
+              <h3>
+                Audit & Security
+              </h3>
+
+              <p>
+                Security events and administrative
+                audit tools will live here.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            alignItems: "center",
+            flexWrap: "wrap",
+            marginTop: "28px"
+          }}
+        >
+          <span className="dashboard-badge">
+            <span className="status-dot"></span>
+            Owner session active
+          </span>
+
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onLogout}
+            style={{
+              border: "none",
+              cursor: "pointer"
+            }}
+          >
+            Exit Owner Control Room
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function OwnerPortal() {
+  const [loading, setLoading] =
+    useState(true);
+
+  const [eligible, setEligible] =
+    useState(false);
+
+  const [authenticated, setAuthenticated] =
+    useState(false);
+
+  const [ownerData, setOwnerData] =
+    useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOwnerStatus() {
+      try {
+        const status =
+          await getOwnerStatus();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!status.eligible) {
+          window.location.href = "/staff";
+          return;
+        }
+
+        setEligible(true);
+
+        if (status.authenticated) {
+          const ownerMe =
+            await getOwnerMe();
+
+          if (cancelled) {
+            return;
+          }
+
+          if (
+            ownerMe.ok &&
+            ownerMe.authenticated
+          ) {
+            setOwnerData(ownerMe);
+            setAuthenticated(true);
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Unable to load Owner Security status:",
+          error
+        );
+
+        if (!cancelled) {
+          window.location.href = "/staff";
+        }
+
+        return;
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadOwnerStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <main className="public-page">
+        <div className="public-card">
+          <span className="header-kicker">
+            JET2 | PTFS
+          </span>
+
+          <h1>
+            Checking Owner Security...
+          </h1>
+
+          <p>
+            Verifying your Discord identity and
+            Owner access.
+          </p>
+
+          <div className="dashboard-badge">
+            <span className="status-dot"></span>
+            Authenticating
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!eligible) {
+    return null;
+  }
+
+  if (!authenticated) {
+    return (
+      <OwnerLoginScreen
+        onAuthenticated={async () => {
+          try {
+            const ownerMe =
+              await getOwnerMe();
+
+            if (
+              ownerMe.ok &&
+              ownerMe.authenticated
+            ) {
+              setOwnerData(ownerMe);
+              setAuthenticated(true);
+              return;
+            }
+
+            setAuthenticated(false);
+          } catch (error) {
+            console.error(
+              "Unable to load Owner session:",
+              error
+            );
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <OwnerControlRoom
+      ownerData={ownerData}
+      onLogout={logoutOwner}
+    />
+  );
+}
+
+
 /* =========================================================
    AUTHENTICATED STAFF PORTAL
    ========================================================= */
@@ -1029,6 +1617,13 @@ function StaffPortal() {
           path="training"
           element={
             <StaffTraining />
+          }
+        />
+
+        <Route
+          path="owner"
+          element={
+            <OwnerPortal />
           }
         />
       </Routes>
