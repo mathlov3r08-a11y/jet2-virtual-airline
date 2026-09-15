@@ -3,10 +3,14 @@
   "name": "jet2-virtual-airline",
   "compatibility_date": "2026-09-10",
   "main": "src/worker.js",
+
+  "vars": {},
+
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS"
   },
+
   "d1_databases": [
     {
       "binding": "DB",
