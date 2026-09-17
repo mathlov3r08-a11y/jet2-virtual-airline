@@ -1655,6 +1655,193 @@ async function createOwnerSession(env, userId) {
   return sessionId;
 }
 
+async function handleOwnerPasswordDiagnostic(env, request) {
+  const identity = await getOwnerIdentity(env, request);
+
+  if (!identity) {
+    return json(
+      {
+        error: "Owner access is not available for this account."
+      },
+      403
+    );
+  }
+
+  const storedHash = env.OWNER_PASSWORD_HASH;
+
+  if (typeof storedHash !== "string") {
+    return json({
+      configured: false,
+      type: typeof storedHash
+    });
+  }
+
+  const parts = storedHash.split("$");
+
+  let saltBytes = null;
+  let hashBytes = null;
+  let base64PartsValid = false;
+
+  if (parts.length === 4) {
+    try {
+      saltBytes = base64ToBytes(parts[2]).length;
+      hashBytes = base64ToBytes(parts[3]).length;
+      base64PartsValid = true;
+    } catch {
+      base64PartsValid = false;
+    }
+  }
+
+  let fingerprint = null;
+
+  try {
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(storedHash)
+    );
+
+    fingerprint = Array.from(
+      new Uint8Array(digest)
+    )
+      .map(
+        (byte) =>
+          byte
+            .toString(16)
+            .padStart(2, "0")
+      )
+      .join("")
+      .slice(0, 12);
+  } catch {
+    fingerprint = null;
+  }
+
+  return json({
+    configured: true,
+    type: "string",
+    characterCount: storedHash.length,
+    startsWithPbkdf2: storedHash.startsWith("pbkdf2$"),
+    partCount: parts.length,
+    algorithm: parts[0] || null,
+    iterations:
+      parts.length === 4
+        ? Number(parts[1]) || null
+        : null,
+    saltBytes,
+    hashBytes,
+    base64PartsValid,
+    hasLeadingWhitespace:
+      storedHash !== storedHash.trimStart(),
+    hasTrailingWhitespace:
+      storedHash !== storedHash.trimEnd(),
+    containsWhitespace:
+      /\s/.test(storedHash),
+    fingerprint
+  });
+}
+
+async function handleOwnerPasswordVerifierDiagnostic(env, request) {
+  const identity = await getOwnerIdentity(env, request);
+
+  if (!identity) {
+    return json(
+      {
+        error: "Owner access is not available for this account."
+      },
+      403
+    );
+  }
+
+  /*
+   * This is a fixed, non-secret PBKDF2 test vector.
+   * It contains no user password, owner password, or Cloudflare secret.
+   * The purpose is to prove that the Worker runtime's PBKDF2 verifier
+   * produces the expected result using the same algorithm parameters
+   * used by OWNER_PASSWORD_HASH.
+   */
+  const diagnosticPassword = "Jet2OwnerDiagnostic";
+  const diagnosticHash =
+    "pbkdf2$310000$SmV0MkRpYWdub3N0aWNTYWx0$x23gyQRqxdZ9WqoWPCrdzpaK8uGLC64dyZBEL8/gAKA=";
+
+  let knownGood = false;
+  let knownWrong = true;
+  let verifierError = null;
+
+  try {
+    knownGood = await verifyOwnerPassword(
+      diagnosticPassword,
+      diagnosticHash
+    );
+
+    knownWrong = await verifyOwnerPassword(
+      "DefinitelyNotTheDiagnosticPassword",
+      diagnosticHash
+    );
+  } catch (error) {
+    verifierError =
+      error instanceof Error
+        ? error.message
+        : "Unknown verifier error.";
+  }
+
+  const configuredHash = env.OWNER_PASSWORD_HASH;
+  let configured = false;
+  let configuredParts = 0;
+  let configuredIterations = null;
+  let configuredSaltBytes = null;
+  let configuredHashBytes = null;
+  let configuredBase64Valid = false;
+
+  if (typeof configuredHash === "string") {
+    configured = true;
+    const parts = configuredHash.split("$");
+    configuredParts = parts.length;
+
+    if (parts.length === 4) {
+      configuredIterations = Number(parts[1]) || null;
+
+      try {
+        configuredSaltBytes = base64ToBytes(parts[2]).length;
+        configuredHashBytes = base64ToBytes(parts[3]).length;
+        configuredBase64Valid = true;
+      } catch {
+        configuredBase64Valid = false;
+      }
+    }
+  }
+
+  return json({
+    verifierSelfTest: {
+      algorithm: "PBKDF2-HMAC-SHA256",
+      iterations: 310000,
+      expectedHashBytes: 32,
+      knownGoodPasswordAccepted: knownGood,
+      knownWrongPasswordRejected: !knownWrong,
+      passed:
+        knownGood === true &&
+        knownWrong === false &&
+        verifierError === null,
+      error: verifierError
+    },
+    configuredHash: {
+      configured,
+      startsWithPbkdf2:
+        typeof configuredHash === "string" &&
+        configuredHash.startsWith("pbkdf2$"),
+      partCount: configuredParts,
+      iterations: configuredIterations,
+      saltBytes: configuredSaltBytes,
+      hashBytes: configuredHashBytes,
+      base64PartsValid: configuredBase64Valid
+    },
+    conclusion:
+      knownGood === true &&
+      knownWrong === false &&
+      verifierError === null
+        ? "Worker PBKDF2 verifier is functioning correctly."
+        : "Worker PBKDF2 verifier self-test failed."
+  });
+}
+
 async function handleOwnerStatus(env, request) {
   const identity = await getOwnerIdentity(env, request);
 
@@ -1998,6 +2185,418 @@ async function handleOwnerLogout(env, request) {
   );
 }
 
+
+/* =========================================================
+   OWNER ORGANIZATION
+   ========================================================= */
+
+function isValidDiscordUserId(value) {
+  return typeof value === "string" && /^\d{17,20}$/.test(value.trim());
+}
+
+function normalizeOrganizationGroup(value) {
+  return ["leadership", "bod", "directors"].includes(value)
+    ? value
+    : null;
+}
+
+function normalizeOrganizationStatus(value) {
+  return ["current", "past"].includes(value)
+    ? value
+    : null;
+}
+
+function normalizeCustomPhotoUrl(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return null;
+    }
+
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function resolveOrganizationPhoto(env, person) {
+  if (person.custom_photo_url) {
+    return person.custom_photo_url;
+  }
+
+  try {
+    const member = await getGuildMember(
+      env,
+      person.discord_user_id
+    );
+
+    if (member) {
+      return getDiscordAvatarUrl({
+        id: person.discord_user_id,
+        avatar: member.user?.avatar
+      });
+    }
+  } catch (error) {
+    console.error(
+      "Unable to resolve organization Discord avatar:",
+      error
+    );
+  }
+
+  return null;
+}
+
+async function serializeOrganizationPerson(env, person) {
+  return {
+    id: person.id,
+    discordUserId: person.discord_user_id,
+    displayName: person.display_name,
+    positionTitle: person.position_title,
+    groupType: person.group_type,
+    status: person.status,
+    displayOrder: person.display_order,
+    description: person.description || "",
+    customPhotoUrl: person.custom_photo_url || "",
+    photoUrl: await resolveOrganizationPhoto(env, person),
+    createdAt: person.created_at,
+    updatedAt: person.updated_at
+  };
+}
+
+async function handleOwnerOrganization(env, request) {
+  const owner = await requireOwnerSession(env, request);
+
+  if (!owner) {
+    return json(
+      { error: "Owner authentication required." },
+      401
+    );
+  }
+
+  if (request.method === "GET") {
+    const rows = await env.DB.prepare(
+      `
+        SELECT
+          id,
+          discord_user_id,
+          display_name,
+          position_title,
+          group_type,
+          status,
+          display_order,
+          description,
+          custom_photo_url,
+          created_at,
+          updated_at
+        FROM organization_people
+        ORDER BY
+          CASE group_type
+            WHEN 'leadership' THEN 1
+            WHEN 'bod' THEN 2
+            WHEN 'directors' THEN 3
+            ELSE 4
+          END,
+          CASE status
+            WHEN 'current' THEN 1
+            ELSE 2
+          END,
+          display_order ASC,
+          id ASC
+      `
+    ).all();
+
+    const people = [];
+
+    for (const row of rows.results || []) {
+      people.push(
+        await serializeOrganizationPerson(env, row)
+      );
+    }
+
+    return json({ people });
+  }
+
+  let body;
+
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid request." }, 400);
+  }
+
+  if (request.method === "POST") {
+    const discordUserId =
+      typeof body?.discordUserId === "string"
+        ? body.discordUserId.trim()
+        : "";
+    const displayName =
+      typeof body?.displayName === "string"
+        ? body.displayName.trim()
+        : "";
+    const positionTitle =
+      typeof body?.positionTitle === "string"
+        ? body.positionTitle.trim()
+        : "";
+    const groupType = normalizeOrganizationGroup(
+      body?.groupType
+    );
+    const status =
+      normalizeOrganizationStatus(body?.status) ||
+      "current";
+    const displayOrder = Number.isFinite(
+      Number(body?.displayOrder)
+    )
+      ? Math.max(0, Math.trunc(Number(body.displayOrder)))
+      : 0;
+    const description =
+      typeof body?.description === "string"
+        ? body.description.trim()
+        : "";
+    const customPhotoUrl = normalizeCustomPhotoUrl(
+      body?.customPhotoUrl
+    );
+
+    if (!isValidDiscordUserId(discordUserId)) {
+      return json({ error: "Enter a valid Discord user ID." }, 400);
+    }
+
+    if (!displayName || !positionTitle) {
+      return json({ error: "Display name and position are required." }, 400);
+    }
+
+    if (!groupType) {
+      return json({ error: "Choose a valid organization group." }, 400);
+    }
+
+    if (body?.customPhotoUrl && !customPhotoUrl) {
+      return json({ error: "Custom photo URL must use HTTP or HTTPS." }, 400);
+    }
+
+    const result = await env.DB.prepare(
+      `
+        INSERT INTO organization_people (
+          discord_user_id,
+          display_name,
+          position_title,
+          group_type,
+          status,
+          display_order,
+          description,
+          custom_photo_url
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        discordUserId,
+        displayName,
+        positionTitle,
+        groupType,
+        status,
+        displayOrder,
+        description || null,
+        customPhotoUrl
+      )
+      .run();
+
+    await env.DB.prepare(
+      `
+        INSERT INTO audit_logs (
+          user_id, action, target_type, target_id, details
+        )
+        VALUES (?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        owner.user.id,
+        "organization.person.create",
+        "organization_person",
+        String(result.meta?.last_row_id || ""),
+        JSON.stringify({
+          discordUserId,
+          positionTitle,
+          groupType,
+          status
+        })
+      )
+      .run();
+
+    return json({
+      success: true,
+      id: result.meta?.last_row_id || null
+    }, 201);
+  }
+
+  if (request.method === "PUT") {
+    const id = Number(body?.id);
+
+    if (!Number.isInteger(id) || id < 1) {
+      return json({ error: "Invalid organization record ID." }, 400);
+    }
+
+    const discordUserId =
+      typeof body?.discordUserId === "string"
+        ? body.discordUserId.trim()
+        : "";
+    const displayName =
+      typeof body?.displayName === "string"
+        ? body.displayName.trim()
+        : "";
+    const positionTitle =
+      typeof body?.positionTitle === "string"
+        ? body.positionTitle.trim()
+        : "";
+    const groupType = normalizeOrganizationGroup(
+      body?.groupType
+    );
+    const status = normalizeOrganizationStatus(
+      body?.status
+    );
+    const displayOrder = Number.isFinite(
+      Number(body?.displayOrder)
+    )
+      ? Math.max(0, Math.trunc(Number(body.displayOrder)))
+      : 0;
+    const description =
+      typeof body?.description === "string"
+        ? body.description.trim()
+        : "";
+    const customPhotoUrl = normalizeCustomPhotoUrl(
+      body?.customPhotoUrl
+    );
+
+    if (!isValidDiscordUserId(discordUserId)) {
+      return json({ error: "Enter a valid Discord user ID." }, 400);
+    }
+
+    if (!displayName || !positionTitle || !groupType || !status) {
+      return json({ error: "Display name, position, group and status are required." }, 400);
+    }
+
+    if (body?.customPhotoUrl && !customPhotoUrl) {
+      return json({ error: "Custom photo URL must use HTTP or HTTPS." }, 400);
+    }
+
+    const result = await env.DB.prepare(
+      `
+        UPDATE organization_people
+        SET
+          discord_user_id = ?,
+          display_name = ?,
+          position_title = ?,
+          group_type = ?,
+          status = ?,
+          display_order = ?,
+          description = ?,
+          custom_photo_url = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `
+    )
+      .bind(
+        discordUserId,
+        displayName,
+        positionTitle,
+        groupType,
+        status,
+        displayOrder,
+        description || null,
+        customPhotoUrl,
+        id
+      )
+      .run();
+
+    if (!result.meta?.changes) {
+      return json({ error: "Organization record not found." }, 404);
+    }
+
+    await env.DB.prepare(
+      `
+        INSERT INTO audit_logs (
+          user_id, action, target_type, target_id, details
+        )
+        VALUES (?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        owner.user.id,
+        "organization.person.update",
+        "organization_person",
+        String(id),
+        JSON.stringify({
+          discordUserId,
+          positionTitle,
+          groupType,
+          status
+        })
+      )
+      .run();
+
+    return json({ success: true });
+  }
+
+  if (request.method === "DELETE") {
+    const id = Number(body?.id);
+
+    if (!Number.isInteger(id) || id < 1) {
+      return json({ error: "Invalid organization record ID." }, 400);
+    }
+
+    const result = await env.DB.prepare(
+      `
+        UPDATE organization_people
+        SET
+          status = 'past',
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+          AND status = 'current'
+      `
+    )
+      .bind(id)
+      .run();
+
+    if (!result.meta?.changes) {
+      return json({ error: "Current organization record not found." }, 404);
+    }
+
+    await env.DB.prepare(
+      `
+        INSERT INTO audit_logs (
+          user_id, action, target_type, target_id, details
+        )
+        VALUES (?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        owner.user.id,
+        "organization.person.archive",
+        "organization_person",
+        String(id),
+        JSON.stringify({ status: "past" })
+      )
+      .run();
+
+    return json({ success: true });
+  }
+
+  return json({ error: "Method not allowed." }, 405);
+}
+
 async function requireOwnerSession(env, request) {
   const identity = await getOwnerIdentity(env, request);
 
@@ -2207,6 +2806,28 @@ export default {
       if (
         request.method === "GET" &&
         url.pathname ===
+          "/api/owner/password-diagnostic"
+      ) {
+        return await handleOwnerPasswordDiagnostic(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "GET" &&
+        url.pathname ===
+          "/api/owner/password-verifier-diagnostic"
+      ) {
+        return await handleOwnerPasswordVerifierDiagnostic(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "GET" &&
+        url.pathname ===
           "/api/owner/status"
       ) {
         return await handleOwnerStatus(
@@ -2232,6 +2853,17 @@ export default {
           "/api/owner/me"
       ) {
         return await handleOwnerMe(
+          env,
+          request
+        );
+      }
+
+      if (
+        ["GET", "POST", "PUT", "DELETE"].includes(request.method) &&
+        url.pathname ===
+          "/api/owner/organization"
+      ) {
+        return await handleOwnerOrganization(
           env,
           request
         );
