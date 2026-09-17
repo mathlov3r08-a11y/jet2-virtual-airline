@@ -1739,6 +1739,109 @@ async function handleOwnerPasswordDiagnostic(env, request) {
   });
 }
 
+async function handleOwnerPasswordVerifierDiagnostic(env, request) {
+  const identity = await getOwnerIdentity(env, request);
+
+  if (!identity) {
+    return json(
+      {
+        error: "Owner access is not available for this account."
+      },
+      403
+    );
+  }
+
+  /*
+   * This is a fixed, non-secret PBKDF2 test vector.
+   * It contains no user password, owner password, or Cloudflare secret.
+   * The purpose is to prove that the Worker runtime's PBKDF2 verifier
+   * produces the expected result using the same algorithm parameters
+   * used by OWNER_PASSWORD_HASH.
+   */
+  const diagnosticPassword = "Jet2OwnerDiagnostic";
+  const diagnosticHash =
+    "pbkdf2$310000$SmV0MkRpYWdub3N0aWNTYWx0$x23gyQRqxdZ9WqoWPCrdzpaK8uGLC64dyZBEL8/gAKA=";
+
+  let knownGood = false;
+  let knownWrong = true;
+  let verifierError = null;
+
+  try {
+    knownGood = await verifyOwnerPassword(
+      diagnosticPassword,
+      diagnosticHash
+    );
+
+    knownWrong = await verifyOwnerPassword(
+      "DefinitelyNotTheDiagnosticPassword",
+      diagnosticHash
+    );
+  } catch (error) {
+    verifierError =
+      error instanceof Error
+        ? error.message
+        : "Unknown verifier error.";
+  }
+
+  const configuredHash = env.OWNER_PASSWORD_HASH;
+  let configured = false;
+  let configuredParts = 0;
+  let configuredIterations = null;
+  let configuredSaltBytes = null;
+  let configuredHashBytes = null;
+  let configuredBase64Valid = false;
+
+  if (typeof configuredHash === "string") {
+    configured = true;
+    const parts = configuredHash.split("$");
+    configuredParts = parts.length;
+
+    if (parts.length === 4) {
+      configuredIterations = Number(parts[1]) || null;
+
+      try {
+        configuredSaltBytes = base64ToBytes(parts[2]).length;
+        configuredHashBytes = base64ToBytes(parts[3]).length;
+        configuredBase64Valid = true;
+      } catch {
+        configuredBase64Valid = false;
+      }
+    }
+  }
+
+  return json({
+    verifierSelfTest: {
+      algorithm: "PBKDF2-HMAC-SHA256",
+      iterations: 310000,
+      expectedHashBytes: 32,
+      knownGoodPasswordAccepted: knownGood,
+      knownWrongPasswordRejected: !knownWrong,
+      passed:
+        knownGood === true &&
+        knownWrong === false &&
+        verifierError === null,
+      error: verifierError
+    },
+    configuredHash: {
+      configured,
+      startsWithPbkdf2:
+        typeof configuredHash === "string" &&
+        configuredHash.startsWith("pbkdf2$"),
+      partCount: configuredParts,
+      iterations: configuredIterations,
+      saltBytes: configuredSaltBytes,
+      hashBytes: configuredHashBytes,
+      base64PartsValid: configuredBase64Valid
+    },
+    conclusion:
+      knownGood === true &&
+      knownWrong === false &&
+      verifierError === null
+        ? "Worker PBKDF2 verifier is functioning correctly."
+        : "Worker PBKDF2 verifier self-test failed."
+  });
+}
+
 async function handleOwnerStatus(env, request) {
   const identity = await getOwnerIdentity(env, request);
 
@@ -2294,6 +2397,17 @@ export default {
           "/api/owner/password-diagnostic"
       ) {
         return await handleOwnerPasswordDiagnostic(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "GET" &&
+        url.pathname ===
+          "/api/owner/password-verifier-diagnostic"
+      ) {
+        return await handleOwnerPasswordVerifierDiagnostic(
           env,
           request
         );
