@@ -1655,6 +1655,90 @@ async function createOwnerSession(env, userId) {
   return sessionId;
 }
 
+async function handleOwnerPasswordDiagnostic(env, request) {
+  const identity = await getOwnerIdentity(env, request);
+
+  if (!identity) {
+    return json(
+      {
+        error: "Owner access is not available for this account."
+      },
+      403
+    );
+  }
+
+  const storedHash = env.OWNER_PASSWORD_HASH;
+
+  if (typeof storedHash !== "string") {
+    return json({
+      configured: false,
+      type: typeof storedHash
+    });
+  }
+
+  const parts = storedHash.split("$");
+
+  let saltBytes = null;
+  let hashBytes = null;
+  let base64PartsValid = false;
+
+  if (parts.length === 4) {
+    try {
+      saltBytes = base64ToBytes(parts[2]).length;
+      hashBytes = base64ToBytes(parts[3]).length;
+      base64PartsValid = true;
+    } catch {
+      base64PartsValid = false;
+    }
+  }
+
+  let fingerprint = null;
+
+  try {
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(storedHash)
+    );
+
+    fingerprint = Array.from(
+      new Uint8Array(digest)
+    )
+      .map(
+        (byte) =>
+          byte
+            .toString(16)
+            .padStart(2, "0")
+      )
+      .join("")
+      .slice(0, 12);
+  } catch {
+    fingerprint = null;
+  }
+
+  return json({
+    configured: true,
+    type: "string",
+    characterCount: storedHash.length,
+    startsWithPbkdf2: storedHash.startsWith("pbkdf2$"),
+    partCount: parts.length,
+    algorithm: parts[0] || null,
+    iterations:
+      parts.length === 4
+        ? Number(parts[1]) || null
+        : null,
+    saltBytes,
+    hashBytes,
+    base64PartsValid,
+    hasLeadingWhitespace:
+      storedHash !== storedHash.trimStart(),
+    hasTrailingWhitespace:
+      storedHash !== storedHash.trimEnd(),
+    containsWhitespace:
+      /\s/.test(storedHash),
+    fingerprint
+  });
+}
+
 async function handleOwnerStatus(env, request) {
   const identity = await getOwnerIdentity(env, request);
 
@@ -2199,6 +2283,17 @@ export default {
           "/api/auth/logout"
       ) {
         return await handleLogout(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "GET" &&
+        url.pathname ===
+          "/api/owner/password-diagnostic"
+      ) {
+        return await handleOwnerPasswordDiagnostic(
           env,
           request
         );
