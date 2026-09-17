@@ -103,8 +103,7 @@ function getOrganizationalUnit(
         (department, index, array) =>
           array.indexOf(department) ===
           index
-      )
-      .slice(0, 2);
+      );
   }
 
   const rawRank =
@@ -147,20 +146,12 @@ function getOrganizationalUnit(
 function getAvailableModules(
   permissions = {}
 ) {
-  const permissionSet = new Set(
-    Array.isArray(permissions)
-      ? permissions
-      : []
-  );
-
-  const hasPermission = (name) =>
-    permissionSet.has(name) ||
-    Boolean(
-      permissions?.[name?.split(".")?.[0]]?.[name?.split(".")?.[1]]
-    );
   const modules = [];
 
-  if (hasPermission("portal.view") || permissions.portal === true) {
+  if (
+    permissions.portal?.view ||
+    permissions.portal === true
+  ) {
     modules.push({
       label: "Dashboard",
       path: "/staff"
@@ -168,10 +159,10 @@ function getAvailableModules(
   }
 
   if (
-    hasPermission("flights.view") ||
-    hasPermission("flights.create") ||
-    hasPermission("flights.edit") ||
-    hasPermission("flights.manage")
+    permissions.flights?.view ||
+    permissions.flights?.create ||
+    permissions.flights?.edit ||
+    permissions.flights?.manage
   ) {
     modules.push({
       label: "Flight Operations",
@@ -179,35 +170,50 @@ function getAvailableModules(
     });
   }
 
-  if (hasPermission("staff.view") || hasPermission("staff.manage")) {
+  if (
+    permissions.staff?.view ||
+    permissions.staff?.manage
+  ) {
     modules.push({
       label: "Staff Management",
       path: "/staff/staff"
     });
   }
 
-  if (hasPermission("training.view") || hasPermission("training.manage")) {
+  if (
+    permissions.training?.view ||
+    permissions.training?.manage
+  ) {
     modules.push({
       label: "Training",
       path: "/staff/training"
     });
   }
 
-  if (hasPermission("careers.view") || hasPermission("careers.manage")) {
+  if (
+    permissions.careers?.view ||
+    permissions.careers?.manage
+  ) {
     modules.push({
       label: "Careers",
       path: "/staff"
     });
   }
 
-  if (hasPermission("announcements.view") || hasPermission("announcements.manage")) {
+  if (
+    permissions.announcements?.view ||
+    permissions.announcements?.manage
+  ) {
     modules.push({
       label: "Announcements",
       path: "/staff"
     });
   }
 
-  if (hasPermission("admin.review") || hasPermission("admin.owner")) {
+  if (
+    permissions.admin?.review ||
+    permissions.admin?.owner
+  ) {
     modules.push({
       label: "Administration",
       path: "/staff"
@@ -315,6 +321,14 @@ function StaffLayout({
     }
   ];
 
+  const user = authData?.user;
+  const rank = authData?.rank;
+  const positions =
+    authData?.positions || [];
+
+  const permissions =
+    authData?.permissions || {};
+
   if (
     Array.isArray(permissions) &&
     permissions.includes("admin.owner")
@@ -324,14 +338,6 @@ function StaffLayout({
       path: "/staff/owner/organization"
     });
   }
-
-  const user = authData?.user;
-  const rank = authData?.rank;
-  const positions =
-    authData?.positions || [];
-
-  const permissions =
-    authData?.permissions || {};
 
   const rankTitle =
     getRankTitle(rank);
@@ -825,7 +831,7 @@ function StaffDashboard({
                 ? departmentNames.join(
                     " · "
                   )
-                : "No department assignment"}
+                : "Leadership"}
             </strong>
           </div>
 
@@ -910,498 +916,6 @@ function StaffTraining() {
         Training programmes, requirements
         and progress will live here.
       </p>
-    </div>
-  );
-}
-
-/* =========================================================
-   OWNER ORGANIZATION
-   ========================================================= */
-
-function OwnerLogin({ onAuthenticated }) {
-  const [password, setPassword] = useState("");
-  const [totp, setTotp] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function submit(event) {
-    event.preventDefault();
-    setError("");
-    setBusy(true);
-
-    try {
-      const response = await fetch("/api/owner/login", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ password, totp })
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        setError(data.error || "Owner authentication failed.");
-        return;
-      }
-
-      onAuthenticated();
-    } catch (requestError) {
-      console.error(requestError);
-      setError("Unable to contact the owner security service.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div style={ownerPageStyle}>
-      <div style={ownerCardStyle}>
-        <span className="section-label">OWNER SECURITY</span>
-        <h2 style={{ marginBottom: 8 }}>Administration access</h2>
-        <p style={{ color: "#666", lineHeight: 1.6 }}>
-          Confirm the owner password and current authenticator code to manage Jet2 | PTFS organization records.
-        </p>
-
-        <form onSubmit={submit} style={{ display: "grid", gap: 14, marginTop: 24 }}>
-          <label style={formLabelStyle}>
-            Owner password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-              required
-              style={formInputStyle}
-            />
-          </label>
-
-          <label style={formLabelStyle}>
-            Authenticator code
-            <input
-              inputMode="numeric"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              value={totp}
-              onChange={(event) => setTotp(event.target.value.replace(/\D/g, "").slice(0, 6))}
-              autoComplete="one-time-code"
-              required
-              style={formInputStyle}
-            />
-          </label>
-
-          {error && (
-            <div style={errorStyle}>{error}</div>
-          )}
-
-          <button type="submit" disabled={busy} style={primaryButtonStyle}>
-            {busy ? "Verifying…" : "Enter Administration"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-const ownerPageStyle = {
-  maxWidth: 1100,
-  margin: "0 auto",
-  paddingBottom: 48
-};
-
-const ownerCardStyle = {
-  background: "#fff",
-  border: "1px solid #e5e5e5",
-  borderRadius: 18,
-  padding: 28,
-  boxShadow: "0 10px 30px rgba(0,0,0,0.05)"
-};
-
-const formLabelStyle = {
-  display: "grid",
-  gap: 7,
-  fontWeight: 700,
-  fontSize: 14,
-  color: "#333"
-};
-
-const formInputStyle = {
-  width: "100%",
-  boxSizing: "border-box",
-  border: "1px solid #d8d8d8",
-  borderRadius: 10,
-  padding: "11px 12px",
-  font: "inherit",
-  background: "#fff"
-};
-
-const primaryButtonStyle = {
-  border: 0,
-  borderRadius: 10,
-  padding: "12px 16px",
-  background: "#d71920",
-  color: "#fff",
-  fontWeight: 800,
-  cursor: "pointer"
-};
-
-const secondaryButtonStyle = {
-  border: "1px solid #d7d7d7",
-  borderRadius: 10,
-  padding: "10px 14px",
-  background: "#fff",
-  color: "#222",
-  fontWeight: 700,
-  cursor: "pointer"
-};
-
-const dangerButtonStyle = {
-  ...secondaryButtonStyle,
-  color: "#b20f16",
-  borderColor: "#efb5b8"
-};
-
-const errorStyle = {
-  background: "#fff1f1",
-  border: "1px solid #f0c4c6",
-  color: "#a10d13",
-  borderRadius: 10,
-  padding: "10px 12px",
-  fontSize: 14
-};
-
-function OrganizationPersonForm({ initialPerson, onCancel, onSaved }) {
-  const [form, setForm] = useState(() => ({
-    id: initialPerson?.id || null,
-    discordUserId: initialPerson?.discordUserId || "",
-    displayName: initialPerson?.displayName || "",
-    positionTitle: initialPerson?.positionTitle || "",
-    groupType: initialPerson?.groupType || "leadership",
-    status: initialPerson?.status || "current",
-    displayOrder: initialPerson?.displayOrder ?? 0,
-    description: initialPerson?.description || "",
-    customPhotoUrl: initialPerson?.customPhotoUrl || ""
-  }));
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  function update(name, value) {
-    setForm((current) => ({ ...current, [name]: value }));
-  }
-
-  async function submit(event) {
-    event.preventDefault();
-    setError("");
-    setBusy(true);
-
-    try {
-      const method = form.id ? "PUT" : "POST";
-      const response = await fetch("/api/owner/organization", {
-        method,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(form)
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        setError(data.error || "Unable to save this person.");
-        return;
-      }
-
-      onSaved();
-    } catch (requestError) {
-      console.error(requestError);
-      setError("Unable to contact the organization service.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div style={{ marginTop: 22, padding: 20, borderRadius: 14, background: "#f8f8f8", border: "1px solid #e6e6e6" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center" }}>
-        <div>
-          <span className="section-label">{form.id ? "EDIT PERSON" : "ADD PERSON"}</span>
-          <h3 style={{ margin: "5px 0 0" }}>{form.id ? "Update organization record" : "Create organization record"}</h3>
-        </div>
-        <button type="button" onClick={onCancel} style={secondaryButtonStyle}>Cancel</button>
-      </div>
-
-      <form onSubmit={submit} style={{ display: "grid", gap: 14, marginTop: 20 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
-          <label style={formLabelStyle}>
-            Discord user ID
-            <input value={form.discordUserId} onChange={(event) => update("discordUserId", event.target.value)} required style={formInputStyle} placeholder="Discord user ID" />
-          </label>
-          <label style={formLabelStyle}>
-            Display name
-            <input value={form.displayName} onChange={(event) => update("displayName", event.target.value)} required style={formInputStyle} placeholder="Name shown on the site" />
-          </label>
-          <label style={formLabelStyle}>
-            Position title
-            <input value={form.positionTitle} onChange={(event) => update("positionTitle", event.target.value)} required style={formInputStyle} placeholder="Chief Executive Officer" />
-          </label>
-          <label style={formLabelStyle}>
-            Group
-            <select value={form.groupType} onChange={(event) => update("groupType", event.target.value)} style={formInputStyle}>
-              <option value="leadership">Leadership</option>
-              <option value="bod">Board of Directors</option>
-              <option value="directors">Directors</option>
-            </select>
-          </label>
-          <label style={formLabelStyle}>
-            Status
-            <select value={form.status} onChange={(event) => update("status", event.target.value)} style={formInputStyle}>
-              <option value="current">Current</option>
-              <option value="past">Past</option>
-            </select>
-          </label>
-          <label style={formLabelStyle}>
-            Display order
-            <input type="number" min="0" value={form.displayOrder} onChange={(event) => update("displayOrder", event.target.value)} style={formInputStyle} />
-          </label>
-        </div>
-
-        <label style={formLabelStyle}>
-          Description
-          <textarea value={form.description} onChange={(event) => update("description", event.target.value)} rows={3} style={{ ...formInputStyle, resize: "vertical" }} placeholder="Optional short description" />
-        </label>
-
-        <label style={formLabelStyle}>
-          Custom photo URL <span style={{ fontWeight: 500, color: "#777" }}>(optional — Discord avatar is used by default)</span>
-          <input type="url" value={form.customPhotoUrl} onChange={(event) => update("customPhotoUrl", event.target.value)} style={formInputStyle} placeholder="https://…" />
-        </label>
-
-        {error && <div style={errorStyle}>{error}</div>}
-
-        <button type="submit" disabled={busy} style={{ ...primaryButtonStyle, width: "fit-content" }}>
-          {busy ? "Saving…" : form.id ? "Save Changes" : "Add Person"}
-        </button>
-      </form>
-    </div>
-  );
-}
-
-function OrganizationCard({ person, onEdit, onArchive, onRestore }) {
-  return (
-    <article style={{ display: "grid", gridTemplateColumns: "56px minmax(0,1fr) auto", gap: 15, alignItems: "center", padding: 16, border: "1px solid #e5e5e5", borderRadius: 14, background: "#fff" }}>
-      {person.photoUrl ? (
-        <img src={person.photoUrl} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover" }} />
-      ) : (
-        <div style={{ width: 56, height: 56, borderRadius: "50%", display: "grid", placeItems: "center", background: "#eee", fontWeight: 800, color: "#666" }}>
-          {person.displayName?.charAt(0)?.toUpperCase() || "?"}
-        </div>
-      )}
-
-      <div style={{ minWidth: 0 }}>
-        <strong style={{ display: "block", fontSize: 17 }}>{person.displayName}</strong>
-        <span style={{ display: "block", marginTop: 3, color: "#555", fontWeight: 700 }}>{person.positionTitle}</span>
-        {person.description && <p style={{ margin: "7px 0 0", color: "#777", lineHeight: 1.5 }}>{person.description}</p>}
-        <small style={{ display: "block", marginTop: 7, color: "#999" }}>Discord ID: {person.discordUserId}</small>
-      </div>
-
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-        <button type="button" onClick={() => onEdit(person)} style={secondaryButtonStyle}>Edit</button>
-        {person.status === "current" ? (
-          <button type="button" onClick={() => onArchive(person)} style={dangerButtonStyle}>Move to Past</button>
-        ) : (
-          <button type="button" onClick={() => onRestore(person)} style={secondaryButtonStyle}>Restore</button>
-        )}
-      </div>
-    </article>
-  );
-}
-
-function OwnerOrganization() {
-  const [ownerAuthenticated, setOwnerAuthenticated] = useState(false);
-  const [checkingOwner, setCheckingOwner] = useState(true);
-  const [people, setPeople] = useState([]);
-  const [tab, setTab] = useState("current");
-  const [editing, setEditing] = useState(null);
-  const [loadingPeople, setLoadingPeople] = useState(false);
-  const [error, setError] = useState("");
-
-  async function checkOwner() {
-    setCheckingOwner(true);
-    try {
-      const response = await fetch("/api/owner/me", {
-        credentials: "include"
-      });
-      setOwnerAuthenticated(response.ok);
-    } catch (requestError) {
-      console.error(requestError);
-      setOwnerAuthenticated(false);
-    } finally {
-      setCheckingOwner(false);
-    }
-  }
-
-  async function loadPeople() {
-    setLoadingPeople(true);
-    setError("");
-    try {
-      const response = await fetch("/api/owner/organization", {
-        credentials: "include"
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          setOwnerAuthenticated(false);
-        }
-        setError(data.error || "Unable to load organization records.");
-        return;
-      }
-
-      setPeople(data.people || []);
-    } catch (requestError) {
-      console.error(requestError);
-      setError("Unable to contact the organization service.");
-    } finally {
-      setLoadingPeople(false);
-    }
-  }
-
-  useEffect(() => {
-    checkOwner();
-  }, []);
-
-  useEffect(() => {
-    if (ownerAuthenticated) {
-      loadPeople();
-    }
-  }, [ownerAuthenticated]);
-
-  async function archivePerson(person) {
-    if (!window.confirm(`Move ${person.displayName} to Past?`)) return;
-    const response = await fetch("/api/owner/organization", {
-      method: "DELETE",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: person.id })
-    });
-    if (response.ok) {
-      setEditing(null);
-      loadPeople();
-    } else {
-      const data = await response.json().catch(() => ({}));
-      setError(data.error || "Unable to archive this person.");
-    }
-  }
-
-  async function restorePerson(person) {
-    const response = await fetch("/api/owner/organization", {
-      method: "PUT",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...person,
-        customPhotoUrl: person.customPhotoUrl || "",
-        status: "current"
-      })
-    });
-    if (response.ok) {
-      loadPeople();
-    } else {
-      const data = await response.json().catch(() => ({}));
-      setError(data.error || "Unable to restore this person.");
-    }
-  }
-
-  if (checkingOwner) {
-    return <div style={ownerCardStyle}>Checking owner security…</div>;
-  }
-
-  if (!ownerAuthenticated) {
-    return <OwnerLogin onAuthenticated={() => setOwnerAuthenticated(true)} />;
-  }
-
-  const visiblePeople = people.filter((person) => person.status === tab);
-  const groups = [
-    { key: "leadership", title: "Leadership" },
-    { key: "bod", title: "Board of Directors" },
-    { key: "directors", title: "Directors" }
-  ];
-
-  return (
-    <div style={ownerPageStyle}>
-      <section style={{ marginBottom: 22 }}>
-        <span className="section-label">ADMINISTRATION / ORGANIZATION</span>
-        <h2 style={{ margin: "6px 0 8px" }}>Organization</h2>
-        <p style={{ margin: 0, color: "#666", lineHeight: 1.6 }}>
-          Manage the people displayed in the Jet2 | PTFS organizational structure. Discord avatars are automatic unless a custom image is supplied.
-        </p>
-      </section>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-        <button type="button" onClick={() => setTab("current")} style={tab === "current" ? primaryButtonStyle : secondaryButtonStyle}>Current</button>
-        <button type="button" onClick={() => setTab("past")} style={tab === "past" ? primaryButtonStyle : secondaryButtonStyle}>Past</button>
-      </div>
-
-      <section style={ownerCardStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-          <div>
-            <span className="section-label">{tab.toUpperCase()} ORGANIZATION</span>
-            <h3 style={{ margin: "5px 0 0" }}>{tab === "current" ? "Current team" : "Former team"}</h3>
-          </div>
-          <button type="button" onClick={() => setEditing({})} style={primaryButtonStyle}>+ Add Person</button>
-        </div>
-
-        {editing && (
-          <OrganizationPersonForm
-            initialPerson={editing.id ? editing : null}
-            onCancel={() => setEditing(null)}
-            onSaved={() => {
-              setEditing(null);
-              loadPeople();
-            }}
-          />
-        )}
-
-        {error && <div style={{ ...errorStyle, marginTop: 18 }}>{error}</div>}
-
-        {loadingPeople ? (
-          <p style={{ color: "#777", marginTop: 24 }}>Loading organization records…</p>
-        ) : (
-          <div style={{ display: "grid", gap: 24, marginTop: 24 }}>
-            {groups.map((group) => {
-              const groupPeople = visiblePeople.filter((person) => person.groupType === group.key);
-              return (
-                <section key={group.key}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
-                    <h4 style={{ margin: 0, fontSize: 18 }}>{group.title}</h4>
-                    {group.key === "directors" && (
-                      <span style={{ fontSize: 12, fontWeight: 800, color: "#888", letterSpacing: ".06em" }}>COMING SOON</span>
-                    )}
-                  </div>
-
-                  {groupPeople.length > 0 ? (
-                    <div style={{ display: "grid", gap: 10 }}>
-                      {groupPeople.map((person) => (
-                        <OrganizationCard
-                          key={person.id}
-                          person={person}
-                          onEdit={setEditing}
-                          onArchive={archivePerson}
-                          onRestore={restorePerson}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ padding: 16, borderRadius: 12, background: "#f8f8f8", color: "#888" }}>
-                      {group.key === "directors" ? "Director positions will appear here when introduced." : `No ${tab} ${group.title.toLowerCase()} records yet.`}
-                    </div>
-                  )}
-                </section>
-              );
-            })}
-          </div>
-        )}
-      </section>
     </div>
   );
 }
@@ -1518,13 +1032,6 @@ function StaffPortal() {
           path="staff"
           element={
             <StaffMembers />
-          }
-        />
-
-        <Route
-          path="owner/organization"
-          element={
-            <OwnerOrganization />
           }
         />
 
