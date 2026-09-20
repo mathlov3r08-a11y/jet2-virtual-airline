@@ -131,7 +131,7 @@ const MAIN_RANKS = [
 
 const LEADERSHIP_TITLES = {
   [ROLES.chm]: "CHM",
-  [ROLES.evchm]: "EV-CHM"
+  [ROLES.evchm]: "EV-CHM",
   [ROLES.vchm]: "VCHM",
   [ROLES.ceo]: "CEO",
   [ROLES.coo]: "COO",
