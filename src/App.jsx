@@ -41,12 +41,12 @@ function getRankTitle(rank) {
     CEO: "Chief Executive Officer",
     COO: "Chief Operating Officer",
 
-    CDO: "Chief Development Officer",
+    CDO: "Chief Data Officer",
     CTO: "Chief Technology Officer",
     CHRO: "Chief Human Resources Officer",
     CAO: "Chief Administrative Officer",
-    CMO: "Chief Marketing Officer",
-    COM: "Chief Operations Manager",
+    CMO: "Chief Management Officer",
+    COM: "Chief Of Marketing",
     CXO: "Chief Experience Officer",
 
     GM: "General Manager",
@@ -1027,11 +1027,39 @@ function OwnerControlRoom({ ownerData, onLogout }) {
         <span className="header-kicker">JET2 | PTFS</span>
         <h1>Owner Control Room</h1>
         <p>Welcome, {username}. Your privileged Owner session is active.</p>
-        <div className="dashboard-grid" style={{ marginTop: "28px" }}>
-          <div className="dashboard-card"><span className="card-icon">🔐</span><div><h3>Owner Security</h3><p>Password and authenticator verification completed successfully.</p></div></div>
-          <div className="dashboard-card"><span className="card-icon">◉</span><div><h3>Verified Identity</h3><p>{username} · {rankTitle}</p></div></div>
-          <Link to="/staff/owner/organization" className="dashboard-card"><span className="card-icon">⚙</span><div><h3>Organization</h3><p>Manage Leadership, Board of Directors and future Directors records.</p></div><span className="card-arrow">→</span></Link>
-          <div className="dashboard-card"><span className="card-icon">📋</span><div><h3>Audit & Security</h3><p>Security events and administrative audit tools will live here.</p></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginTop: 28 }}>
+          <div style={{ padding: 18, border: "1px solid #e5e5e5", borderRadius: 14, background: "#fafafa" }}>
+            <span className="section-label">SECURITY</span>
+            <strong style={{ display: "block", marginTop: 6, fontSize: 18 }}>Protected</strong>
+            <span style={{ color: "#777", fontSize: 13 }}>Password + TOTP</span>
+          </div>
+          <div style={{ padding: 18, border: "1px solid #e5e5e5", borderRadius: 14, background: "#fafafa" }}>
+            <span className="section-label">IDENTITY</span>
+            <strong style={{ display: "block", marginTop: 6, fontSize: 18 }}>{username}</strong>
+            <span style={{ color: "#777", fontSize: 13 }}>{rankTitle}</span>
+          </div>
+          <div style={{ padding: 18, border: "1px solid #e5e5e5", borderRadius: 14, background: "#fafafa" }}>
+            <span className="section-label">SESSION</span>
+            <strong style={{ display: "block", marginTop: 6, fontSize: 18 }}>30 minutes</strong>
+            <span style={{ color: "#777", fontSize: 13 }}>Privileged session</span>
+          </div>
+        </div>
+
+        <div className="dashboard-grid" style={{ marginTop: 18 }}>
+          <Link to="/staff/owner/organization" className="dashboard-card">
+            <span className="card-icon">🏢</span>
+            <div><h3>Organization</h3><p>Manage Leadership, Board of Directors and future Directors records.</p></div>
+            <span className="card-arrow">→</span>
+          </Link>
+          <div className="dashboard-card">
+            <span className="card-icon">🔐</span>
+            <div><h3>Owner Security</h3><p>Privileged access is protected by your password and authenticator code.</p></div>
+          </div>
+          <div className="dashboard-card">
+            <span className="card-icon">📋</span>
+            <div><h3>Audit & Security</h3><p>Administrative audit tools are reserved for the next control-room phase.</p></div>
+            <span className="coming-soon">COMING SOON</span>
+          </div>
         </div>
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginTop: "28px" }}>
           <span className="dashboard-badge"><span className="status-dot"></span>Owner session active</span>
