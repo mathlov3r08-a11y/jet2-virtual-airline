@@ -20,10 +20,9 @@ const ROLES = {
 
   /* Leadership positions */
   chm: "1545811527787876452",
-evchm: "1550232742091038860",
-vchm: "1545812090684711053",
-ceo: "1545812226579890186",
-coo: "1545812334759518259",
+  vchm: "1545812090684711053",
+  ceo: "1545812226579890186",
+  coo: "1545812334759518259",
 
   /* Board of Directors */
   cdo: "1545819084166275182",
@@ -69,10 +68,10 @@ const MAIN_RANKS = [
     roleIds: [
       /* Individual leadership ranks come first */
       ROLES.chm,
-ROLES.evchm,
-ROLES.vchm,
-ROLES.ceo,
-ROLES.coo,
+      ROLES.vchm,
+      ROLES.ceo,
+      ROLES.coo,
+
       /* Generic leadership role comes last */
       ROLES.leadership
     ]
@@ -130,10 +129,9 @@ ROLES.coo,
 
 const LEADERSHIP_TITLES = {
   [ROLES.chm]: "CHM",
-[ROLES.evchm]: "EV-CHM",
-[ROLES.vchm]: "V-CHM",
-[ROLES.ceo]: "CEO",
-[ROLES.coo]: "COO",
+  [ROLES.vchm]: "VCHM",
+  [ROLES.ceo]: "CEO",
+  [ROLES.coo]: "COO",
 
   [ROLES.cdo]: "CDO",
   [ROLES.cto]: "CTO",
@@ -2751,6 +2749,88 @@ async function handleStaffPage(
   );
 }
 
+
+/* =========================================================
+   PUBLIC ORGANIZATION DIRECTORY
+   ========================================================= */
+
+async function handlePublicOrganization(env, request) {
+  if (request.method !== "GET") {
+    return json(
+      { error: "Method not allowed." },
+      405,
+      [["Allow", "GET"]]
+    );
+  }
+
+  const url = new URL(request.url);
+  const requestedGroup = url.searchParams.get("group");
+  const requestedStatus =
+    url.searchParams.get("status") || "current";
+
+  const allowedGroups = new Set([
+    "leadership",
+    "bod",
+    "directors"
+  ]);
+
+  const group =
+    requestedGroup &&
+    allowedGroups.has(requestedGroup)
+      ? requestedGroup
+      : "leadership";
+
+  const status =
+    requestedStatus === "past"
+      ? "past"
+      : "current";
+
+  const rows = await env.DB.prepare(
+    `
+      SELECT
+        id,
+        discord_user_id,
+        display_name,
+        position_title,
+        group_type,
+        status,
+        display_order,
+        description,
+        custom_photo_url
+      FROM organization_people
+      WHERE group_type = ?
+        AND status = ?
+      ORDER BY
+        display_order ASC,
+        id ASC
+    `
+  )
+    .bind(group, status)
+    .all();
+
+  const people = [];
+
+  for (const row of rows.results || []) {
+    people.push({
+      id: row.id,
+      displayName: row.display_name,
+      positionTitle: row.position_title,
+      groupType: row.group_type,
+      status: row.status,
+      displayOrder: row.display_order,
+      description: row.description || "",
+      photoUrl:
+        row.custom_photo_url ||
+        await resolveOrganizationPhoto(
+          env,
+          row
+        )
+    });
+  }
+
+  return json({ people });
+}
+
 /* =========================================================
    WORKER
    ========================================================= */
@@ -2800,6 +2880,17 @@ export default {
           "/api/auth/logout"
       ) {
         return await handleLogout(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "GET" &&
+        url.pathname ===
+          "/api/public/organization"
+      ) {
+        return await handlePublicOrganization(
           env,
           request
         );
@@ -2880,6 +2971,24 @@ export default {
           env,
           request
         );
+      }
+
+      if (
+        request.method === "GET" &&
+        (
+          url.pathname === "/leadership" ||
+          url.pathname.startsWith("/leadership/")
+        )
+      ) {
+        const indexRequest = new Request(
+          new URL("/index.html", request.url),
+          {
+            method: "GET",
+            headers: request.headers
+          }
+        );
+
+        return env.ASSETS.fetch(indexRequest);
       }
 
       if (
