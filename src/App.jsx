@@ -38,7 +38,7 @@ function getRankTitle(rank) {
   const titleMap = {
     CHM: "Chairman",
     "EV-CHM": "Executive Vice Chairman",
-    "V-CHM": "Vice Chairman",
+    VCHM: "Vice Chairman",
     CEO: "Chief Executive Officer",
     COO: "Chief Operating Officer",
 
@@ -117,7 +117,7 @@ function getOrganizationalUnit(
     [
       "CHM",
       "EV-CHM",
-      "V-CHM",
+      "VCHM",
       "CEO",
       "COO"
     ].includes(rawRank)
@@ -1618,6 +1618,490 @@ function OwnerOrganization() {
    AUTHENTICATED STAFF PORTAL
    ========================================================= */
 
+
+/* =========================================================
+   PUBLIC EXECUTIVE STAFF
+   ========================================================= */
+
+function ExecutiveStaffPage() {
+  const [people, setPeople] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadExecutiveStaff() {
+      try {
+        const response = await fetch(
+          "/api/public/organization?group=leadership&status=current",
+          {
+            method: "GET",
+            credentials: "omit"
+          }
+        );
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(
+            data.error || "Unable to load Executive Staff."
+          );
+        }
+
+        if (!cancelled) {
+          setPeople(
+            Array.isArray(data.people)
+              ? data.people
+              : []
+          );
+          setError("");
+        }
+      } catch (requestError) {
+        console.error(
+          "Unable to load Executive Staff:",
+          requestError
+        );
+
+        if (!cancelled) {
+          setError(
+            "We couldn't load the Executive Staff directory right now."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadExecutiveStaff();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const orderedPeople = [...people].sort(
+    (a, b) =>
+      Number(a.displayOrder || 0) -
+      Number(b.displayOrder || 0) ||
+      Number(a.id || 0) -
+      Number(b.id || 0)
+  );
+
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#f4f5f6",
+        color: "#171b21",
+        fontFamily:
+          "Arial, Helvetica, sans-serif"
+      }}
+    >
+      <section
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(115deg, #520008 0%, #7d000d 45%, #3d0006 100%)",
+          color: "#fff",
+          padding: "72px 24px 64px"
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            right: "-80px",
+            top: "-100px",
+            width: 360,
+            height: 360,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle, rgba(255,255,255,.08), transparent 68%)"
+          }}
+        />
+
+        <div
+          style={{
+            position: "relative",
+            maxWidth: 1180,
+            margin: "0 auto"
+          }}
+        >
+          <div
+            style={{
+              width: 58,
+              height: 5,
+              background: "#ef233c",
+              borderRadius: 999,
+              marginBottom: 18
+            }}
+          />
+
+          <p
+            style={{
+              margin: 0,
+              fontSize: 14,
+              fontWeight: 800,
+              letterSpacing: ".14em",
+              textTransform: "uppercase",
+              opacity: 0.82
+            }}
+          >
+            Jet2 | PTFS
+          </p>
+
+          <h1
+            style={{
+              margin: "8px 0 12px",
+              fontSize: "clamp(42px, 7vw, 78px)",
+              lineHeight: 0.95,
+              letterSpacing: "-.045em",
+              fontWeight: 900
+            }}
+          >
+            EXECUTIVE STAFF
+          </h1>
+
+          <p
+            style={{
+              maxWidth: 650,
+              margin: 0,
+              fontSize: 18,
+              lineHeight: 1.6,
+              color: "rgba(255,255,255,.86)"
+            }}
+          >
+            Meet the people responsible for
+            leading Jet2 | PTFS and moving the
+            organization forward.
+          </p>
+        </div>
+      </section>
+
+      <section
+        style={{
+          maxWidth: 1180,
+          margin: "0 auto",
+          padding: "42px 24px 72px"
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            marginBottom: 24
+          }}
+        >
+          <span
+            style={{
+              width: 5,
+              height: 42,
+              borderRadius: 999,
+              background: "#8b0010"
+            }}
+          />
+
+          <div>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: 30,
+                letterSpacing: "-.025em"
+              }}
+            >
+              Executive Staff
+            </h2>
+            <p
+              style={{
+                margin: "4px 0 0",
+                color: "#66707a",
+                fontSize: 15
+              }}
+            >
+              Displayed in the order configured by
+              the organization team.
+            </p>
+          </div>
+        </div>
+
+        {loading && (
+          <div
+            style={{
+              padding: 34,
+              borderRadius: 18,
+              background: "#fff",
+              border: "1px solid #e1e4e7",
+              textAlign: "center",
+              color: "#69727d"
+            }}
+          >
+            Loading Executive Staff…
+          </div>
+        )}
+
+        {!loading && error && (
+          <div
+            style={{
+              padding: 22,
+              borderRadius: 18,
+              background: "#fff",
+              border: "1px solid #e1e4e7",
+              color: "#8b0010",
+              fontWeight: 700
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {!loading &&
+          !error &&
+          orderedPeople.length === 0 && (
+            <div
+              style={{
+                padding: 34,
+                borderRadius: 18,
+                background: "#fff",
+                border: "1px solid #e1e4e7",
+                textAlign: "center",
+                color: "#69727d"
+              }}
+            >
+              Executive Staff information will
+              appear here soon.
+            </div>
+          )}
+
+        {!loading &&
+          !error &&
+          orderedPeople.length > 0 && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(230px, 1fr))",
+                gap: 18
+              }}
+            >
+              {orderedPeople.map((person, index) => (
+                <article
+                  key={person.id}
+                  style={{
+                    position: "relative",
+                    overflow: "hidden",
+                    minHeight: 430,
+                    display: "flex",
+                    flexDirection: "column",
+                    borderRadius: 18,
+                    background:
+                      "linear-gradient(160deg, #101820 0%, #070c11 100%)",
+                    color: "#fff",
+                    boxShadow:
+                      "0 12px 30px rgba(18, 22, 28, .14)"
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      height: 132,
+                      background:
+                        "linear-gradient(135deg, #68000b, #a40015)"
+                    }}
+                  />
+
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 14,
+                      left: 14,
+                      zIndex: 2,
+                      minWidth: 30,
+                      height: 30,
+                      padding: "0 9px",
+                      display: "grid",
+                      placeItems: "center",
+                      borderRadius: 9,
+                      background:
+                        "rgba(0,0,0,.22)",
+                      fontWeight: 900,
+                      fontSize: 13
+                    }}
+                  >
+                    {Number(person.displayOrder) > 0
+                      ? person.displayOrder
+                      : index + 1}
+                  </span>
+
+                  <div
+                    style={{
+                      position: "relative",
+                      zIndex: 1,
+                      display: "flex",
+                      justifyContent: "center",
+                      paddingTop: 24
+                    }}
+                  >
+                    {person.photoUrl ? (
+                      <img
+                        src={person.photoUrl}
+                        alt={person.displayName || "Executive"}
+                        style={{
+                          width: 112,
+                          height: 112,
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                          border:
+                            "4px solid rgba(255,255,255,.92)",
+                          boxShadow:
+                            "0 8px 22px rgba(0,0,0,.3)"
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 112,
+                          height: 112,
+                          borderRadius: "50%",
+                          display: "grid",
+                          placeItems: "center",
+                          border:
+                            "4px solid rgba(255,255,255,.92)",
+                          background:
+                            "linear-gradient(135deg, #8b0010, #d71920)",
+                          fontSize: 38,
+                          fontWeight: 900
+                        }}
+                      >
+                        {person.displayName
+                          ?.charAt(0)
+                          ?.toUpperCase() || "?"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      position: "relative",
+                      zIndex: 1,
+                      flex: 1,
+                      display: "flex",
+                      flexDirection: "column",
+                      padding: "18px 20px 20px"
+                    }}
+                  >
+                    <div
+                      style={{
+                        alignSelf: "center",
+                        marginTop: -1,
+                        padding: "7px 20px",
+                        borderRadius: 999,
+                        background:
+                          "linear-gradient(90deg, #d71920, #a40015)",
+                        fontSize: 12,
+                        fontWeight: 900,
+                        letterSpacing: ".05em"
+                      }}
+                    >
+                      {person.positionTitle || "Executive"}
+                    </div>
+
+                    <h3
+                      style={{
+                        margin: "16px 0 3px",
+                        textAlign: "center",
+                        fontSize: 22,
+                        lineHeight: 1.15
+                      }}
+                    >
+                      {person.displayName}
+                    </h3>
+
+                    <p
+                      style={{
+                        margin: 0,
+                        textAlign: "center",
+                        color: "#b9c4cf",
+                        fontSize: 14,
+                        fontWeight: 700
+                      }}
+                    >
+                      {person.positionTitle}
+                    </p>
+
+                    <div
+                      style={{
+                        height: 1,
+                        margin: "17px 0",
+                        background:
+                          "rgba(255,255,255,.14)"
+                      }}
+                    />
+
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#e0e5e9",
+                        fontSize: 14,
+                        lineHeight: 1.55,
+                        flex: 1
+                      }}
+                    >
+                      {person.description ||
+                        "Provides leadership and strategic direction for Jet2 | PTFS."}
+                    </p>
+
+                    <div
+                      style={{
+                        marginTop: 18,
+                        paddingTop: 14,
+                        borderTop:
+                          "1px solid rgba(255,255,255,.12)",
+                        color: "#fff",
+                        fontSize: 13,
+                        fontWeight: 800
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "7px 11px",
+                          borderRadius: 9,
+                          background:
+                            "rgba(215,25,32,.2)",
+                          color: "#ff6670"
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: "#ef233c"
+                          }}
+                        />
+                        {person.groupType === "leadership"
+                          ? "Leadership"
+                          : person.groupType || "Executive Staff"}
+                      </span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+      </section>
+    </main>
+  );
+}
+
+
 function StaffPortal() {
   const [authData, setAuthData] =
     useState(null);
@@ -1751,6 +2235,11 @@ function App() {
         <Route
           path="/"
           element={<Home />}
+        />
+
+        <Route
+          path="/leadership"
+          element={<ExecutiveStaffPage />}
         />
 
         <Route
