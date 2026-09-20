@@ -37,7 +37,8 @@ async function getCurrentUser() {
 function getRankTitle(rank) {
   const titleMap = {
     CHM: "Chairman",
-    VCHM: "Vice Chairman",
+    "EV-CHM": "Executive Vice Chairman",
+    "V-CHM": "Vice Chairman",
     CEO: "Chief Executive Officer",
     COO: "Chief Operating Officer",
 
@@ -115,7 +116,8 @@ function getOrganizationalUnit(
   if (
     [
       "CHM",
-      "VCHM",
+      "EV-CHM",
+      "V-CHM",
       "CEO",
       "COO"
     ].includes(rawRank)
