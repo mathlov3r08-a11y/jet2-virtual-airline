@@ -20,9 +20,10 @@ const ROLES = {
 
   /* Leadership positions */
   chm: "1545811527787876452",
-  vchm: "1545812090684711053",
-  ceo: "1545812226579890186",
-  coo: "1545812334759518259",
+evchm: "1550232742091038860",
+vchm: "1545812090684711053",
+ceo: "1545812226579890186",
+coo: "1545812334759518259",
 
   /* Board of Directors */
   cdo: "1545819084166275182",
@@ -68,10 +69,10 @@ const MAIN_RANKS = [
     roleIds: [
       /* Individual leadership ranks come first */
       ROLES.chm,
-      ROLES.vchm,
-      ROLES.ceo,
-      ROLES.coo,
-
+ROLES.evchm,
+ROLES.vchm,
+ROLES.ceo,
+ROLES.coo,
       /* Generic leadership role comes last */
       ROLES.leadership
     ]
@@ -129,9 +130,10 @@ const MAIN_RANKS = [
 
 const LEADERSHIP_TITLES = {
   [ROLES.chm]: "CHM",
-  [ROLES.vchm]: "VCHM",
-  [ROLES.ceo]: "CEO",
-  [ROLES.coo]: "COO",
+[ROLES.evchm]: "EV-CHM",
+[ROLES.vchm]: "V-CHM",
+[ROLES.ceo]: "CEO",
+[ROLES.coo]: "COO",
 
   [ROLES.cdo]: "CDO",
   [ROLES.cto]: "CTO",
