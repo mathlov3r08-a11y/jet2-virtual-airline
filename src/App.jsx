@@ -2102,6 +2102,958 @@ function ExecutiveStaffPage() {
 }
 
 
+
+/* =========================================================
+   MYJET2 PASSENGER FRONT VIEW
+   ========================================================= */
+
+function MyJet2() {
+  const [account, setAccount] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMyJet2() {
+      try {
+        /*
+         * The Worker owns authentication and myJet2 account data.
+         * This first front-view build deliberately uses a graceful
+         * empty state until the passenger account API is connected.
+         */
+        const response = await fetch("/api/myjet2/account", {
+          method: "GET",
+          credentials: "include"
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            if (!cancelled) {
+              setError("Please sign in with Discord to access myJet2.");
+            }
+            return;
+          }
+
+          throw new Error(
+            data.error || "Unable to load your myJet2 account."
+          );
+        }
+
+        if (!cancelled) {
+          setAccount(data);
+          setError("");
+        }
+      } catch (requestError) {
+        console.error("Unable to load myJet2:", requestError);
+
+        if (!cancelled) {
+          /*
+           * Keep the front view usable while the passenger API
+           * is being finished. We do not invent account data.
+           */
+          setAccount(null);
+          setError("");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadMyJet2();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const user = account?.user || {};
+  const points = Number(account?.pointsBalance ?? 0);
+  const tier = account?.tier || {
+    name: "myJet2 Member",
+    description: "Your myJet2 passenger account"
+  };
+  const nextTier = account?.nextTier || null;
+  const progress = Math.max(
+    0,
+    Math.min(100, Number(account?.progressPercent ?? 0))
+  );
+
+  const perks = Array.isArray(account?.perks)
+    ? account.perks
+    : [];
+
+  const recentActivity = Array.isArray(account?.recentActivity)
+    ? account.recentActivity
+    : [];
+
+  const priorityPasses = Array.isArray(account?.priorityPasses)
+    ? account.priorityPasses
+    : [];
+
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #ffffff 0%, #f7f7f8 48%, #f1f2f3 100%)",
+        color: "#17191d",
+        fontFamily:
+          "Arial, Helvetica, sans-serif"
+      }}
+    >
+      {/* Header */}
+      <header
+        style={{
+          height: 76,
+          background: "#fff",
+          borderBottom: "1px solid #e6e7e9",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 28px",
+          position: "sticky",
+          top: 0,
+          zIndex: 20
+        }}
+      >
+        <Link
+          to="/"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            color: "#17191d",
+            textDecoration: "none"
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 11,
+              display: "grid",
+              placeItems: "center",
+              background: "#d71920",
+              color: "#fff",
+              fontWeight: 900,
+              fontSize: 16
+            }}
+          >
+            J2
+          </div>
+
+          <div>
+            <div
+              style={{
+                fontWeight: 900,
+                fontSize: 20,
+                letterSpacing: "-.035em"
+              }}
+            >
+              my<span style={{ color: "#d71920" }}>Jet2</span>
+            </div>
+
+            <div
+              style={{
+                color: "#8a8f96",
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: ".09em",
+                textTransform: "uppercase"
+              }}
+            >
+              Passenger account
+            </div>
+          </div>
+        </Link>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              overflow: "hidden",
+              display: "grid",
+              placeItems: "center",
+              background: "#ececee",
+              color: "#666",
+              fontWeight: 900
+            }}
+          >
+            {user.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt=""
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover"
+                }}
+              />
+            ) : (
+              user.username?.charAt(0)?.toUpperCase() || "P"
+            )}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 1
+            }}
+          >
+            <strong
+              style={{
+                fontSize: 13
+              }}
+            >
+              {user.username || "Passenger"}
+            </strong>
+
+            <span
+              style={{
+                fontSize: 11,
+                color: "#858a91"
+              }}
+            >
+              {account ? "myJet2 Member" : "Passenger"}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <div
+        style={{
+          width: "min(1180px, calc(100% - 32px))",
+          margin: "0 auto",
+          padding: "42px 0 70px"
+        }}
+      >
+        {/* Welcome */}
+        <section
+          style={{
+            marginBottom: 24
+          }}
+        >
+          <div
+            style={{
+              color: "#d71920",
+              fontSize: 12,
+              fontWeight: 900,
+              letterSpacing: ".14em",
+              textTransform: "uppercase"
+            }}
+          >
+            MYJET2
+          </div>
+
+          <h1
+            style={{
+              margin: "7px 0 8px",
+              fontSize: "clamp(34px, 6vw, 54px)",
+              lineHeight: .98,
+              letterSpacing: "-.05em"
+            }}
+          >
+            Welcome aboard.
+          </h1>
+
+          <p
+            style={{
+              margin: 0,
+              color: "#6f757c",
+              fontSize: 15,
+              lineHeight: 1.55
+            }}
+          >
+            Your flights, points and passenger perks — all in one place.
+          </p>
+        </section>
+
+        {/* Sign-in / loading state */}
+        {loading && (
+          <section
+            style={{
+              padding: 28,
+              background: "#fff",
+              border: "1px solid #e3e4e6",
+              borderRadius: 20,
+              marginBottom: 24,
+              color: "#70757c"
+            }}
+          >
+            Loading your myJet2 account…
+          </section>
+        )}
+
+        {error && (
+          <section
+            style={{
+              padding: 18,
+              background: "#fff7f7",
+              border: "1px solid #efc5c7",
+              borderRadius: 16,
+              marginBottom: 24,
+              color: "#a30f16",
+              fontWeight: 700
+            }}
+          >
+            {error}
+          </section>
+        )}
+
+        {/* Points hero */}
+        <section
+          style={{
+            position: "relative",
+            overflow: "hidden",
+            borderRadius: 24,
+            padding: 30,
+            background:
+              "linear-gradient(120deg, #640008 0%, #a40013 48%, #d71920 100%)",
+            color: "#fff",
+            boxShadow: "0 18px 42px rgba(215,25,32,.18)",
+            marginBottom: 26
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              width: 330,
+              height: 330,
+              right: -130,
+              top: -180,
+              border: "1px solid rgba(255,255,255,.12)",
+              borderRadius: "50%"
+            }}
+          />
+
+          <div
+            style={{
+              position: "absolute",
+              width: 240,
+              height: 240,
+              right: 10,
+              bottom: -190,
+              border: "1px solid rgba(255,255,255,.09)",
+              borderRadius: "50%"
+            }}
+          />
+
+          <div
+            style={{
+              position: "relative",
+              zIndex: 2,
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              gap: 28,
+              alignItems: "center"
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 900,
+                  letterSpacing: ".14em",
+                  textTransform: "uppercase",
+                  opacity: .78
+                }}
+              >
+                Available points
+              </div>
+
+              <div
+                style={{
+                  margin: "8px 0 7px",
+                  fontSize: "clamp(48px, 8vw, 72px)",
+                  fontWeight: 950,
+                  lineHeight: .92,
+                  letterSpacing: "-.065em"
+                }}
+              >
+                {points.toLocaleString()}
+              </div>
+
+              <div
+                style={{
+                  color: "rgba(255,255,255,.84)",
+                  fontSize: 14
+                }}
+              >
+                Earn points through eligible Jet2 | PTFS activity and use them for myJet2 perks.
+              </div>
+            </div>
+
+            <div
+              style={{
+                minWidth: 210,
+                padding: 20,
+                borderRadius: 17,
+                background: "rgba(255,255,255,.12)",
+                border: "1px solid rgba(255,255,255,.16)",
+                backdropFilter: "blur(8px)"
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 900,
+                  letterSpacing: ".12em",
+                  textTransform: "uppercase",
+                  opacity: .72
+                }}
+              >
+                Current status
+              </div>
+
+              <strong
+                style={{
+                  display: "block",
+                  marginTop: 6,
+                  fontSize: 21
+                }}
+              >
+                {tier.name || "myJet2 Member"}
+              </strong>
+
+              <div
+                style={{
+                  marginTop: 16,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  fontSize: 10,
+                  opacity: .78
+                }}
+              >
+                <span>Progress</span>
+                <span>
+                  {nextTier?.name || "Next level"}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  height: 7,
+                  marginTop: 7,
+                  borderRadius: 99,
+                  overflow: "hidden",
+                  background: "rgba(255,255,255,.22)"
+                }}
+              >
+                <div
+                  style={{
+                    width: `${progress}%`,
+                    height: "100%",
+                    borderRadius: "inherit",
+                    background: "#fff"
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Quick links */}
+        <section>
+          <div
+            style={{
+              marginBottom: 14
+            }}
+          >
+            <h2
+              style={{
+                margin: 0,
+                fontSize: 23,
+                letterSpacing: "-.03em"
+              }}
+            >
+              Your myJet2
+            </h2>
+
+            <p
+              style={{
+                margin: "4px 0 0",
+                color: "#777d84",
+                fontSize: 13
+              }}
+            >
+              Manage your passenger benefits and account.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(4, minmax(0, 1fr))",
+              gap: 14
+            }}
+          >
+            {[
+              ["🎁", "My Perks", "View and redeem available benefits."],
+              ["✈️", "My Flights", "View upcoming and previous flights."],
+              ["🎫", "Priority Pass", "View active priority passes."],
+              ["📜", "Points History", "See how your points have changed."]
+            ].map(([icon, title, description]) => (
+              <Link
+                key={title}
+                to="#"
+                style={{
+                  textDecoration: "none",
+                  color: "inherit",
+                  background: "#fff",
+                  border: "1px solid #e3e4e6",
+                  borderRadius: 17,
+                  padding: 19,
+                  minHeight: 145,
+                  transition: "transform .15s ease"
+                }}
+              >
+                <div
+                  style={{
+                    width: 43,
+                    height: 43,
+                    borderRadius: 12,
+                    display: "grid",
+                    placeItems: "center",
+                    background: "#fff0f1",
+                    fontSize: 19,
+                    marginBottom: 16
+                  }}
+                >
+                  {icon}
+                </div>
+
+                <strong
+                  style={{
+                    display: "block",
+                    fontSize: 15
+                  }}
+                >
+                  {title}
+                </strong>
+
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: 6,
+                    color: "#777d84",
+                    fontSize: 12,
+                    lineHeight: 1.45
+                  }}
+                >
+                  {description}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* Perks */}
+        <section style={{ marginTop: 34 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "end",
+              justifyContent: "space-between",
+              gap: 20,
+              marginBottom: 14
+            }}
+          >
+            <div>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 23,
+                  letterSpacing: "-.03em"
+                }}
+              >
+                Featured perks
+              </h2>
+
+              <p
+                style={{
+                  margin: "4px 0 0",
+                  color: "#777d84",
+                  fontSize: 13
+                }}
+              >
+                Benefits available through myJet2.
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(3, minmax(0, 1fr))",
+              gap: 15
+            }}
+          >
+            {(perks.length > 0
+              ? perks.slice(0, 3)
+              : [
+                  {
+                    name: "Priority Pass",
+                    description:
+                      "Unlock priority boarding benefits when eligible.",
+                    pointsCost: null,
+                    status: "Coming soon"
+                  },
+                  {
+                    name: "Flight Upgrades",
+                    description:
+                      "Use eligible myJet2 points toward flight upgrades.",
+                    pointsCost: null,
+                    status: "Coming soon"
+                  },
+                  {
+                    name: "Member Benefits",
+                    description:
+                      "Unlock additional benefits as your account progresses.",
+                    pointsCost: null,
+                    status: "Coming soon"
+                  }
+                ]
+            ).map((perk) => (
+              <article
+                key={perk.id || perk.name}
+                style={{
+                  background: "#fff",
+                  border: "1px solid #e3e4e6",
+                  borderRadius: 18,
+                  padding: 21
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "start",
+                    gap: 12
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 12,
+                      display: "grid",
+                      placeItems: "center",
+                      background: "#fff0f1"
+                    }}
+                  >
+                    ⭐
+                  </div>
+
+                  <span
+                    style={{
+                      padding: "5px 9px",
+                      borderRadius: 999,
+                      background: "#f1f1f2",
+                      color: "#6d7278",
+                      fontSize: 9,
+                      fontWeight: 900,
+                      textTransform: "uppercase",
+                      letterSpacing: ".06em"
+                    }}
+                  >
+                    {perk.status || "Available"}
+                  </span>
+                </div>
+
+                <h3
+                  style={{
+                    margin: "17px 0 7px",
+                    fontSize: 16
+                  }}
+                >
+                  {perk.name}
+                </h3>
+
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#777d84",
+                    fontSize: 12.5,
+                    lineHeight: 1.5,
+                    minHeight: 56
+                  }}
+                >
+                  {perk.description}
+                </p>
+
+                <div
+                  style={{
+                    marginTop: 17,
+                    paddingTop: 13,
+                    borderTop: "1px solid #ededee",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 10
+                  }}
+                >
+                  <strong
+                    style={{
+                      fontSize: 13
+                    }}
+                  >
+                    {perk.pointsCost != null
+                      ? `${Number(perk.pointsCost).toLocaleString()} points`
+                      : "Details coming soon"}
+                  </strong>
+
+                  <button
+                    type="button"
+                    disabled
+                    style={{
+                      border: 0,
+                      borderRadius: 9,
+                      padding: "8px 11px",
+                      background: "#ededee",
+                      color: "#858a90",
+                      fontWeight: 800,
+                      fontSize: 11,
+                      cursor: "not-allowed"
+                    }}
+                  >
+                    {perk.pointsCost != null
+                      ? "Redeem"
+                      : "Coming soon"}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {/* Activity + priority */}
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.2fr .8fr",
+            gap: 15,
+            marginTop: 34
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              border: "1px solid #e3e4e6",
+              borderRadius: 18,
+              padding: 22
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: 17
+              }}
+            >
+              Recent activity
+            </h3>
+
+            {recentActivity.length > 0 ? (
+              <div
+                style={{
+                  display: "grid",
+                  gap: 10,
+                  marginTop: 17
+                }}
+              >
+                {recentActivity.slice(0, 5).map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      padding: 13,
+                      borderRadius: 11,
+                      background: "#f7f7f8",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 14
+                    }}
+                  >
+                    <span>{item.description || item.source}</span>
+                    <strong>
+                      {item.amount > 0 ? "+" : ""}
+                      {item.amount}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "32px 10px 12px",
+                  color: "#7b8087"
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 28,
+                    marginBottom: 7
+                  }}
+                >
+                  📜
+                </div>
+
+                <strong
+                  style={{
+                    display: "block",
+                    color: "#333",
+                    marginBottom: 5
+                  }}
+                >
+                  No activity yet
+                </strong>
+
+                <span
+                  style={{
+                    fontSize: 12
+                  }}
+                >
+                  Your points activity will appear here.
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div
+            style={{
+              background: "#fff",
+              border: "1px solid #e3e4e6",
+              borderRadius: 18,
+              padding: 22
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: 17
+              }}
+            >
+              Priority Pass
+            </h3>
+
+            {priorityPasses.length > 0 ? (
+              <div
+                style={{
+                  display: "grid",
+                  gap: 10,
+                  marginTop: 17
+                }}
+              >
+                {priorityPasses.slice(0, 4).map((pass) => (
+                  <div
+                    key={pass.id}
+                    style={{
+                      padding: 14,
+                      borderRadius: 12,
+                      background: "#fff5f5",
+                      border: "1px solid #f2d0d2"
+                    }}
+                  >
+                    <strong>
+                      {pass.passType === "permanent"
+                        ? "Permanent Priority Pass"
+                        : "One-Time Priority Pass"}
+                    </strong>
+
+                    <div
+                      style={{
+                        marginTop: 4,
+                        color: "#777",
+                        fontSize: 12
+                      }}
+                    >
+                      {pass.status || "Active"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "32px 10px 12px",
+                  color: "#7b8087"
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 28,
+                    marginBottom: 7
+                  }}
+                >
+                  🎫
+                </div>
+
+                <strong
+                  style={{
+                    display: "block",
+                    color: "#333",
+                    marginBottom: 5
+                  }}
+                >
+                  No active passes
+                </strong>
+
+                <span
+                  style={{
+                    fontSize: 12
+                  }}
+                >
+                  Your priority passes will appear here.
+                </span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <footer
+          style={{
+            marginTop: 40,
+            paddingTop: 20,
+            borderTop: "1px solid #dedfe1",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 20,
+            color: "#858a90",
+            fontSize: 11
+          }}
+        >
+          <span>myJet2 · Jet2 | PTFS</span>
+          <span>Passenger benefits programme</span>
+        </footer>
+      </div>
+
+      <style>{`
+        @media (max-width: 900px) {
+          .myjet2-page-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+    </main>
+  );
+}
+
 function StaffPortal() {
   const [authData, setAuthData] =
     useState(null);
@@ -2240,6 +3192,11 @@ function App() {
         <Route
           path="/leadership"
           element={<ExecutiveStaffPage />}
+        />
+
+        <Route
+          path="/myjet2"
+          element={<MyJet2 />}
         />
 
         <Route
