@@ -2776,7 +2776,9 @@ async function handleStaffPage(
 
 const MYJET2_SESSION_COOKIE = "jet2_myjet2_session";
 const MYJET2_OAUTH_STATE_COOKIE = "jet2_myjet2_oauth_state";
+const MYJET2_SIGNUP_USERNAME_COOKIE = "jet2_myjet2_signup_username";
 const MYJET2_SESSION_HOURS = 24;
+const MYJET2_USERNAME_PATTERN = /^[A-Za-z0-9 _-]{3,20}$/;
 
 function getMyJet2SessionId(request) {
   return getCookie(request, MYJET2_SESSION_COOKIE);
@@ -2863,18 +2865,23 @@ async function getMyJet2Identity(env, request) {
   );
 }
 
-async function ensureMyJet2Account(env, userId) {
+async function ensureMyJet2Account(
+  env,
+  userId,
+  username = null
+) {
   await env.DB.prepare(
     `
       INSERT OR IGNORE INTO myjet2_accounts (
         user_id,
+        username,
         points_balance,
         status
       )
-      VALUES (?, 0, 'active')
+      VALUES (?, ?, 0, 'active')
     `
   )
-    .bind(userId)
+    .bind(userId, username)
     .run();
 
   return env.DB.prepare(
@@ -2882,6 +2889,7 @@ async function ensureMyJet2Account(env, userId) {
       SELECT
         a.id,
         a.user_id,
+        a.username,
         a.points_balance,
         a.tier_id,
         a.status,
@@ -2953,6 +2961,7 @@ async function refreshMyJet2Tier(env, account) {
 function serializeMyJet2Account(account, tier) {
   return {
     id: account.id,
+    username: account.username || null,
     pointsBalance: Number(account.points_balance || 0),
     status: account.status,
     tier: tier
@@ -3070,7 +3079,33 @@ async function getMyJet2Transactions(env, accountId) {
   }));
 }
 
-async function handleMyJet2Login() {
+async function handleMyJet2Login(env, request) {
+  const url = new URL(request.url);
+  const rawUsername = url.searchParams.get("username");
+  const username = rawUsername ? rawUsername.trim() : null;
+
+  if (username && !MYJET2_USERNAME_PATTERN.test(username)) {
+    return new Response(
+      "Invalid myJet2 username. Use 3–20 letters, numbers, spaces, hyphens, or underscores.",
+      { status: 400 }
+    );
+  }
+
+  if (username) {
+    const taken = await env.DB.prepare(
+      `SELECT id FROM myjet2_accounts WHERE username = ? COLLATE NOCASE LIMIT 1`
+    )
+      .bind(username)
+      .first();
+
+    if (taken) {
+      return new Response(
+        "That myJet2 username is already taken.",
+        { status: 409 }
+      );
+    }
+  }
+
   const state = randomToken(24);
   const authorizeUrl = new URL(
     "https://discord.com/oauth2/authorize"
@@ -3106,7 +3141,18 @@ async function handleMyJet2Login() {
           MYJET2_OAUTH_STATE_COOKIE,
           state
         )
-      ]
+      ],
+      ...(username
+        ? [
+            [
+              "Set-Cookie",
+              makeCookie(
+                MYJET2_SIGNUP_USERNAME_COOKIE,
+                username
+              )
+            ]
+          ]
+        : [])
     ]
   );
 }
@@ -3118,6 +3164,10 @@ async function handleMyJet2Callback(env, request) {
   const storedState = getCookie(
     request,
     MYJET2_OAUTH_STATE_COOKIE
+  );
+  const signupUsername = getCookie(
+    request,
+    MYJET2_SIGNUP_USERNAME_COOKIE
   );
 
   if (
@@ -3210,7 +3260,91 @@ async function handleMyJet2Callback(env, request) {
     );
   }
 
-  await ensureMyJet2Account(env, user.id);
+  let existingAccount = await env.DB.prepare(
+    `
+      SELECT
+        id,
+        user_id,
+        username
+      FROM myjet2_accounts
+      WHERE user_id = ?
+      LIMIT 1
+    `
+  )
+    .bind(user.id)
+    .first();
+
+  if (signupUsername) {
+    if (!MYJET2_USERNAME_PATTERN.test(signupUsername)) {
+      return new Response(
+        "Invalid myJet2 username.",
+        { status: 400 }
+      );
+    }
+
+    const usernameOwner = await env.DB.prepare(
+      `
+        SELECT
+          id,
+          user_id
+        FROM myjet2_accounts
+        WHERE username = ? COLLATE NOCASE
+        LIMIT 1
+      `
+    )
+      .bind(signupUsername)
+      .first();
+
+    if (usernameOwner && String(usernameOwner.user_id) !== String(user.id)) {
+      return redirect(
+        "/myjet2/register?error=username_taken",
+        [
+          [
+            "Set-Cookie",
+            clearCookie(MYJET2_OAUTH_STATE_COOKIE)
+          ],
+          [
+            "Set-Cookie",
+            clearCookie(MYJET2_SIGNUP_USERNAME_COOKIE)
+          ]
+        ]
+      );
+    }
+
+    if (existingAccount?.username && existingAccount.username !== signupUsername) {
+      return redirect(
+        "/myjet2/register?error=already_registered",
+        [
+          [
+            "Set-Cookie",
+            clearCookie(MYJET2_OAUTH_STATE_COOKIE)
+          ],
+          [
+            "Set-Cookie",
+            clearCookie(MYJET2_SIGNUP_USERNAME_COOKIE)
+          ]
+        ]
+      );
+    }
+
+    if (!existingAccount) {
+      await ensureMyJet2Account(env, user.id, signupUsername);
+    } else if (!existingAccount.username) {
+      await env.DB.prepare(
+        `
+          UPDATE myjet2_accounts
+          SET
+            username = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `
+      )
+        .bind(signupUsername, existingAccount.id)
+        .run();
+    }
+  } else {
+    await ensureMyJet2Account(env, user.id);
+  }
 
   const sessionId = randomToken(32);
 
@@ -3236,7 +3370,9 @@ async function handleMyJet2Callback(env, request) {
     .run();
 
   return redirect(
-    "/myjet2",
+    signupUsername
+      ? "/myjet2/register?completed=1"
+      : "/myjet2",
     [
       [
         "Set-Cookie",
@@ -3249,6 +3385,12 @@ async function handleMyJet2Callback(env, request) {
         "Set-Cookie",
         clearCookie(
           MYJET2_OAUTH_STATE_COOKIE
+        )
+      ],
+      [
+        "Set-Cookie",
+        clearCookie(
+          MYJET2_SIGNUP_USERNAME_COOKIE
         )
       ]
     ]
@@ -4041,7 +4183,7 @@ export default {
         url.pathname ===
           "/api/myjet2/auth/discord"
       ) {
-        return await handleMyJet2Login();
+        return await handleMyJet2Login(env, request);
       }
 
       if (
