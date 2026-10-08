@@ -2103,6 +2103,340 @@ function ExecutiveStaffPage() {
 
 
 
+
+/* =========================================================
+   MYJET2 REGISTRATION
+   ========================================================= */
+
+function MyJet2Registration() {
+  const location = useLocation();
+  const completed =
+    new URLSearchParams(location.search).get("completed") === "1";
+  const errorCode =
+    new URLSearchParams(location.search).get("error");
+
+  const [step, setStep] = useState(completed ? 3 : 1);
+  const [username, setUsername] = useState("");
+  const [error, setError] = useState(
+    errorCode === "username_taken"
+      ? "That myJet2 username is already taken. Please choose another."
+      : errorCode === "already_registered"
+        ? "This Discord account already has a myJet2 account."
+        : ""
+  );
+  const [transitioning, setTransitioning] = useState(false);
+
+  const usernameValid =
+    /^[A-Za-z0-9 _-]{3,20}$/.test(username.trim());
+
+  function transitionTo(nextStep, callback) {
+    setTransitioning(true);
+    window.setTimeout(() => {
+      callback?.();
+      setStep(nextStep);
+      setTransitioning(false);
+    }, 220);
+  }
+
+  function continueFromUsername() {
+    const cleanUsername = username.trim();
+
+    if (!/^[A-Za-z0-9 _-]{3,20}$/.test(cleanUsername)) {
+      setError(
+        "Username must be 3–20 characters and may contain letters, numbers, spaces, hyphens, or underscores."
+      );
+      return;
+    }
+
+    setError("");
+    transitionTo(2);
+  }
+
+  function connectDiscord() {
+    const cleanUsername = username.trim();
+
+    if (!/^[A-Za-z0-9 _-]{3,20}$/.test(cleanUsername)) {
+      setStep(1);
+      setError("Please choose a valid myJet2 username first.");
+      return;
+    }
+
+    setError("");
+    setTransitioning(true);
+    window.setTimeout(() => {
+      window.location.href =
+        `/api/myjet2/auth/discord?username=${encodeURIComponent(cleanUsername)}`;
+    }, 220);
+  }
+
+  const steps = [
+    { number: 1, label: "Username" },
+    { number: 2, label: "Discord" },
+    { number: 3, label: "Complete" }
+  ];
+
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(180deg, #ffffff 0%, #f6f7f8 100%)",
+        color: "#17191d",
+        fontFamily: "Arial, Helvetica, sans-serif",
+        display: "grid",
+        placeItems: "center",
+        padding: 24
+      }}
+    >
+      <section
+        className={
+          "myjet2-registration-shell" +
+          (transitioning ? " transitioning" : "")
+        }
+        style={{
+          width: "min(620px, 100%)",
+          background: "#fff",
+          border: "1px solid #e2e3e5",
+          borderRadius: 26,
+          boxShadow: "0 22px 60px rgba(23,25,29,.08)",
+          padding: "clamp(24px, 5vw, 46px)"
+        }}
+      >
+        <Link
+          to="/"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 10,
+            color: "#17191d",
+            textDecoration: "none",
+            fontWeight: 900,
+            marginBottom: 34
+          }}
+        >
+          <span
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 11,
+              display: "grid",
+              placeItems: "center",
+              background: "#d71920",
+              color: "#fff"
+            }}
+          >
+            J2
+          </span>
+          <span>my<span style={{ color: "#d71920" }}>Jet2</span></span>
+        </Link>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 10,
+            marginBottom: 34
+          }}
+        >
+          {steps.map((item) => {
+            const state =
+              item.number < step
+                ? "complete"
+                : item.number === step
+                  ? "current"
+                  : "pending";
+
+            const background =
+              state === "complete"
+                ? "#22c55e"
+                : state === "current"
+                  ? "#f2c94c"
+                  : "#d1d5db";
+
+            return (
+              <div key={item.number}>
+                <div
+                  style={{
+                    height: 5,
+                    borderRadius: 999,
+                    background,
+                    marginBottom: 8
+                  }}
+                />
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 900,
+                    color: state === "pending" ? "#9ca1a8" : "#44484d",
+                    textTransform: "uppercase",
+                    letterSpacing: ".08em"
+                  }}
+                >
+                  {item.number}. {item.label}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {step === 1 && (
+          <>
+            <div style={{ color: "#d71920", fontSize: 11, fontWeight: 900, letterSpacing: ".13em", textTransform: "uppercase" }}>
+              Welcome to myJet2
+            </div>
+            <h1 style={{ margin: "8px 0 10px", fontSize: "clamp(32px, 6vw, 48px)", lineHeight: 1, letterSpacing: "-.05em" }}>
+              Choose your username.
+            </h1>
+            <p style={{ margin: "0 0 26px", color: "#70757c", lineHeight: 1.6, fontSize: 14 }}>
+              This is your myJet2 passenger name. It is separate from your Discord username.
+            </p>
+
+            <label style={{ display: "grid", gap: 8, fontSize: 12, fontWeight: 900 }}>
+              myJet2 username
+              <input
+                value={username}
+                onChange={(event) => {
+                  setUsername(event.target.value);
+                  if (error) setError("");
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") continueFromUsername();
+                }}
+                maxLength={20}
+                placeholder="e.g. Jet2Pilot"
+                autoFocus
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  border: `1px solid ${error ? "#d71920" : "#d9dade"}`,
+                  borderRadius: 12,
+                  padding: "13px 14px",
+                  fontSize: 15,
+                  outline: "none"
+                }}
+              />
+            </label>
+
+            <p style={{ margin: "9px 0 0", color: "#92979e", fontSize: 11 }}>
+              3–20 characters · letters, numbers, spaces, - and _
+            </p>
+
+            {error && (
+              <div style={{ marginTop: 16, padding: 12, borderRadius: 11, background: "#fff5f5", color: "#a30f16", fontSize: 12, fontWeight: 700 }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={continueFromUsername}
+              disabled={!usernameValid}
+              style={{
+                width: "100%",
+                marginTop: 24,
+                border: 0,
+                borderRadius: 12,
+                padding: "14px 18px",
+                background: usernameValid ? "#d71920" : "#e4e5e7",
+                color: usernameValid ? "#fff" : "#989da3",
+                fontWeight: 900,
+                cursor: usernameValid ? "pointer" : "not-allowed"
+              }}
+            >
+              Continue
+            </button>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <div style={{ color: "#d71920", fontSize: 11, fontWeight: 900, letterSpacing: ".13em", textTransform: "uppercase" }}>
+              Step 2 · Discord
+            </div>
+            <h1 style={{ margin: "8px 0 10px", fontSize: "clamp(32px, 6vw, 48px)", lineHeight: 1, letterSpacing: "-.05em" }}>
+              Connect your Discord.
+            </h1>
+            <p style={{ margin: "0 0 22px", color: "#70757c", lineHeight: 1.6, fontSize: 14 }}>
+              Discord is your myJet2 identity provider. We’ll verify that you’re a member of the Jet2 | PTFS Discord server. No separate myJet2 password is needed.
+            </p>
+
+            <div style={{ padding: 17, borderRadius: 15, background: "#f7f7f8", border: "1px solid #e6e7e9", marginBottom: 20 }}>
+              <div style={{ fontSize: 10, color: "#8a8f96", fontWeight: 900, textTransform: "uppercase", letterSpacing: ".1em" }}>
+                Your username
+              </div>
+              <strong style={{ display: "block", marginTop: 5, fontSize: 18 }}>
+                {username.trim()}
+              </strong>
+            </div>
+
+            {error && (
+              <div style={{ marginBottom: 16, padding: 12, borderRadius: 11, background: "#fff5f5", color: "#a30f16", fontSize: 12, fontWeight: 700 }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={connectDiscord}
+              style={{ width: "100%", border: 0, borderRadius: 12, padding: "14px 18px", background: "#5865f2", color: "#fff", fontWeight: 900, cursor: "pointer" }}
+            >
+              Continue with Discord
+            </button>
+
+            <button
+              type="button"
+              onClick={() => transitionTo(1)}
+              style={{ width: "100%", marginTop: 10, border: "1px solid #d9dade", borderRadius: 12, padding: "12px 18px", background: "#fff", color: "#555a60", fontWeight: 800, cursor: "pointer" }}
+            >
+              Back
+            </button>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <div style={{ width: 62, height: 62, borderRadius: "50%", display: "grid", placeItems: "center", background: "#dcfce7", color: "#16a34a", fontSize: 30, marginBottom: 20 }}>
+              ✓
+            </div>
+            <div style={{ color: "#16a34a", fontSize: 11, fontWeight: 900, letterSpacing: ".13em", textTransform: "uppercase" }}>
+              Registration complete
+            </div>
+            <h1 style={{ margin: "8px 0 10px", fontSize: "clamp(34px, 6vw, 50px)", lineHeight: 1, letterSpacing: "-.05em" }}>
+              You’re all set!
+            </h1>
+            <p style={{ margin: "0 0 26px", color: "#70757c", lineHeight: 1.6, fontSize: 14 }}>
+              Your myJet2 account is ready. Welcome aboard{username.trim() ? `, ${username.trim()}` : ""}.
+            </p>
+
+            <Link
+              to="/myjet2"
+              style={{ display: "block", textAlign: "center", textDecoration: "none", borderRadius: 12, padding: "14px 18px", background: "#d71920", color: "#fff", fontWeight: 900 }}
+            >
+              Enter myJet2 →
+            </Link>
+          </>
+        )}
+      </section>
+
+      <style>{`
+        @keyframes myJet2FadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes myJet2FadeOut {
+          from { opacity: 1; transform: translateY(0); }
+          to { opacity: 0; transform: translateY(-5px); }
+        }
+        .myjet2-registration-shell {
+          animation: myJet2FadeIn .32s ease both;
+        }
+        .myjet2-registration-shell.transitioning {
+          animation: myJet2FadeOut .22s ease both;
+        }
+      `}</style>
+    </main>
+  );
+}
+
 /* =========================================================
    MYJET2 PASSENGER FRONT VIEW
    ========================================================= */
@@ -2122,7 +2456,7 @@ function MyJet2() {
          * This first front-view build deliberately uses a graceful
          * empty state until the passenger account API is connected.
          */
-        const response = await fetch("/api/myjet2/account", {
+        const response = await fetch("/api/myjet2/me", {
           method: "GET",
           credentials: "include"
         });
@@ -2143,7 +2477,10 @@ function MyJet2() {
         }
 
         if (!cancelled) {
-          setAccount(data);
+          setAccount({
+            ...data,
+            ...(data.account || {})
+          });
           setError("");
         }
       } catch (requestError) {
@@ -2410,6 +2747,14 @@ function MyJet2() {
             }}
           >
             {error}
+            <div style={{ marginTop: 12 }}>
+              <Link
+                to="/myjet2/register"
+                style={{ color: "#a30f16", fontWeight: 900 }}
+              >
+                Register for myJet2 →
+              </Link>
+            </div>
           </section>
         )}
 
@@ -3192,6 +3537,11 @@ function App() {
         <Route
           path="/leadership"
           element={<ExecutiveStaffPage />}
+        />
+
+        <Route
+          path="/myjet2/register"
+          element={<MyJet2Registration />}
         />
 
         <Route
