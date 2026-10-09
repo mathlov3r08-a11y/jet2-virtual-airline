@@ -252,7 +252,7 @@ function SidebarSection({
               : "sidebar-chevron"
           }
         >
-          ›
+          â€º
         </span>
       </button>
 
@@ -284,7 +284,7 @@ async function handleLogout() {
       error
     );
   } finally {
-    window.location.href = "/";
+    window.location.href = "/apply";
   }
 }
 
@@ -423,7 +423,7 @@ function StaffLayout({
                     0 && (
                     <span className="staff-user-department">
                       {departments.join(
-                        " · "
+                        " Â· "
                       )}
                     </span>
                   )}
@@ -449,7 +449,7 @@ function StaffLayout({
                             className="module-item"
                           >
                             <span className="module-check">
-                              ✓
+                              âœ“
                             </span>
 
                             <span>
@@ -559,7 +559,7 @@ function StaffLayout({
                 }
               >
                 <span>
-                  ↪
+                  â†ª
                 </span>
 
                 Log Out
@@ -692,7 +692,7 @@ function StaffDashboard({
           className="dashboard-card"
         >
           <span className="card-icon">
-            ✈
+            âœˆ
           </span>
 
           <div>
@@ -707,7 +707,7 @@ function StaffDashboard({
           </div>
 
           <span className="card-arrow">
-            →
+            â†’
           </span>
         </Link>
 
@@ -716,7 +716,7 @@ function StaffDashboard({
           className="dashboard-card"
         >
           <span className="card-icon">
-            ◉
+            â—‰
           </span>
 
           <div>
@@ -731,7 +731,7 @@ function StaffDashboard({
           </div>
 
           <span className="card-arrow">
-            →
+            â†’
           </span>
         </Link>
 
@@ -740,7 +740,7 @@ function StaffDashboard({
           className="dashboard-card"
         >
           <span className="card-icon">
-            ✓
+            âœ“
           </span>
 
           <div>
@@ -755,13 +755,13 @@ function StaffDashboard({
           </div>
 
           <span className="card-arrow">
-            →
+            â†’
           </span>
         </Link>
 
         <div className="dashboard-card disabled-card">
           <span className="card-icon">
-            ▣
+            â–£
           </span>
 
           <div>
@@ -825,7 +825,7 @@ function StaffDashboard({
               {departmentNames.length >
               0
                 ? departmentNames.join(
-                    " · "
+                    " Â· "
                   )
                 : "No department assignment"}
             </strong>
@@ -1049,16 +1049,16 @@ function OwnerControlRoom({ ownerData, onLogout }) {
 
         <div className="dashboard-grid" style={{ marginTop: 18 }}>
           <Link to="/staff/owner/organization" className="dashboard-card">
-            <span className="card-icon">🏢</span>
+            <span className="card-icon">ðŸ¢</span>
             <div><h3>Organization</h3><p>Manage Leadership, Board of Directors and future Directors records.</p></div>
-            <span className="card-arrow">→</span>
+            <span className="card-arrow">â†’</span>
           </Link>
           <div className="dashboard-card">
-            <span className="card-icon">🔐</span>
+            <span className="card-icon">ðŸ”</span>
             <div><h3>Owner Security</h3><p>Privileged access is protected by your password and authenticator code.</p></div>
           </div>
           <div className="dashboard-card">
-            <span className="card-icon">📋</span>
+            <span className="card-icon">ðŸ“‹</span>
             <div><h3>Audit & Security</h3><p>Administrative audit tools are reserved for the next control-room phase.</p></div>
             <span className="coming-soon">COMING SOON</span>
           </div>
@@ -1204,7 +1204,7 @@ function OwnerLogin({ onAuthenticated }) {
           )}
 
           <button type="submit" disabled={busy} style={primaryButtonStyle}>
-            {busy ? "Verifying…" : "Enter Administration"}
+            {busy ? "Verifyingâ€¦" : "Enter Administration"}
           </button>
         </form>
       </div>
@@ -1380,14 +1380,14 @@ function OrganizationPersonForm({ initialPerson, onCancel, onSaved }) {
         </label>
 
         <label style={formLabelStyle}>
-          Custom photo URL <span style={{ fontWeight: 500, color: "#777" }}>(optional — Discord avatar is used by default)</span>
-          <input type="url" value={form.customPhotoUrl} onChange={(event) => update("customPhotoUrl", event.target.value)} style={formInputStyle} placeholder="https://…" />
+          Custom photo URL <span style={{ fontWeight: 500, color: "#777" }}>(optional â€” Discord avatar is used by default)</span>
+          <input type="url" value={form.customPhotoUrl} onChange={(event) => update("customPhotoUrl", event.target.value)} style={formInputStyle} placeholder="https://â€¦" />
         </label>
 
         {error && <div style={errorStyle}>{error}</div>}
 
         <button type="submit" disabled={busy} style={{ ...primaryButtonStyle, width: "fit-content" }}>
-          {busy ? "Saving…" : form.id ? "Save Changes" : "Add Person"}
+          {busy ? "Savingâ€¦" : form.id ? "Save Changes" : "Add Person"}
         </button>
       </form>
     </div>
@@ -1521,7 +1521,7 @@ function OwnerOrganization() {
   }
 
   if (checkingOwner) {
-    return <div style={ownerCardStyle}>Checking owner security…</div>;
+    return <div style={ownerCardStyle}>Checking owner securityâ€¦</div>;
   }
 
   if (!ownerAuthenticated) {
@@ -1573,7 +1573,7 @@ function OwnerOrganization() {
         {error && <div style={{ ...errorStyle, marginTop: 18 }}>{error}</div>}
 
         {loadingPeople ? (
-          <p style={{ color: "#777", marginTop: 24 }}>Loading organization records…</p>
+          <p style={{ color: "#777", marginTop: 24 }}>Loading organization recordsâ€¦</p>
         ) : (
           <div style={{ display: "grid", gap: 24, marginTop: 24 }}>
             {groups.map((group) => {
@@ -1839,7 +1839,7 @@ function ExecutiveStaffPage() {
               color: "#69727d"
             }}
           >
-            Loading Executive Staff…
+            Loading Executive Staffâ€¦
           </div>
         )}
 
@@ -2143,7 +2143,7 @@ function MyJet2Registration() {
 
     if (!/^[A-Za-z0-9 _-]{3,20}$/.test(cleanUsername)) {
       setError(
-        "Username must be 3–20 characters and may contain letters, numbers, spaces, hyphens, or underscores."
+        "Username must be 3â€“20 characters and may contain letters, numbers, spaces, hyphens, or underscores."
       );
       return;
     }
@@ -2202,7 +2202,7 @@ function MyJet2Registration() {
         }}
       >
         <Link
-          to="/"
+          to="/apply"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -2317,7 +2317,7 @@ function MyJet2Registration() {
             </label>
 
             <p style={{ margin: "9px 0 0", color: "#92979e", fontSize: 11 }}>
-              3–20 characters · letters, numbers, spaces, - and _
+              3â€“20 characters Â· letters, numbers, spaces, - and _
             </p>
 
             {error && (
@@ -2350,13 +2350,13 @@ function MyJet2Registration() {
         {step === 2 && (
           <>
             <div style={{ color: "#d71920", fontSize: 11, fontWeight: 900, letterSpacing: ".13em", textTransform: "uppercase" }}>
-              Step 2 · Discord
+              Step 2 Â· Discord
             </div>
             <h1 style={{ margin: "8px 0 10px", fontSize: "clamp(32px, 6vw, 48px)", lineHeight: 1, letterSpacing: "-.05em" }}>
               Connect your Discord.
             </h1>
             <p style={{ margin: "0 0 22px", color: "#70757c", lineHeight: 1.6, fontSize: 14 }}>
-              Discord is your myJet2 identity provider. We’ll verify that you’re a member of the Jet2 | PTFS Discord server. No separate myJet2 password is needed.
+              Discord is your myJet2 identity provider. Weâ€™ll verify that youâ€™re a member of the Jet2 | PTFS Discord server. No separate myJet2 password is needed.
             </p>
 
             <div style={{ padding: 17, borderRadius: 15, background: "#f7f7f8", border: "1px solid #e6e7e9", marginBottom: 20 }}>
@@ -2395,13 +2395,13 @@ function MyJet2Registration() {
         {step === 3 && (
           <>
             <div style={{ width: 62, height: 62, borderRadius: "50%", display: "grid", placeItems: "center", background: "#dcfce7", color: "#16a34a", fontSize: 30, marginBottom: 20 }}>
-              ✓
+              âœ“
             </div>
             <div style={{ color: "#16a34a", fontSize: 11, fontWeight: 900, letterSpacing: ".13em", textTransform: "uppercase" }}>
               Registration complete
             </div>
             <h1 style={{ margin: "8px 0 10px", fontSize: "clamp(34px, 6vw, 50px)", lineHeight: 1, letterSpacing: "-.05em" }}>
-              You’re all set!
+              Youâ€™re all set!
             </h1>
             <p style={{ margin: "0 0 26px", color: "#70757c", lineHeight: 1.6, fontSize: 14 }}>
               Your myJet2 account is ready. Welcome aboard{username.trim() ? `, ${username.trim()}` : ""}.
@@ -2411,7 +2411,7 @@ function MyJet2Registration() {
               to="/myjet2"
               style={{ display: "block", textAlign: "center", textDecoration: "none", borderRadius: 12, padding: "14px 18px", background: "#d71920", color: "#fff", fontWeight: 900 }}
             >
-              Enter myJet2 →
+              Enter myJet2 â†’
             </Link>
           </>
         )}
@@ -2559,7 +2559,7 @@ function MyJet2() {
         }}
       >
         <Link
-          to="/"
+          to="/apply"
           style={{
             display: "flex",
             alignItems: "center",
@@ -2714,7 +2714,7 @@ function MyJet2() {
               lineHeight: 1.55
             }}
           >
-            Your flights, points and passenger perks — all in one place.
+            Your flights, points and passenger perks â€” all in one place.
           </p>
         </section>
 
@@ -2730,7 +2730,7 @@ function MyJet2() {
               color: "#70757c"
             }}
           >
-            Loading your myJet2 account…
+            Loading your myJet2 accountâ€¦
           </section>
         )}
 
@@ -2752,7 +2752,7 @@ function MyJet2() {
                 to="/myjet2/register"
                 style={{ color: "#a30f16", fontWeight: 900 }}
               >
-                Register for myJet2 →
+                Register for myJet2 â†’
               </Link>
             </div>
           </section>
@@ -2948,10 +2948,10 @@ function MyJet2() {
             }}
           >
             {[
-              ["🎁", "My Perks", "View and redeem available benefits."],
-              ["✈️", "My Flights", "View upcoming and previous flights."],
-              ["🎫", "Priority Pass", "View active priority passes."],
-              ["📜", "Points History", "See how your points have changed."]
+              ["ðŸŽ", "My Perks", "View and redeem available benefits."],
+              ["âœˆï¸", "My Flights", "View upcoming and previous flights."],
+              ["ðŸŽ«", "Priority Pass", "View active priority passes."],
+              ["ðŸ“œ", "Points History", "See how your points have changed."]
             ].map(([icon, title, description]) => (
               <Link
                 key={title}
@@ -3102,7 +3102,7 @@ function MyJet2() {
                       background: "#fff0f1"
                     }}
                   >
-                    ⭐
+                    â­
                   </div>
 
                   <span
@@ -3255,7 +3255,7 @@ function MyJet2() {
                     marginBottom: 7
                   }}
                 >
-                  📜
+                  ðŸ“œ
                 </div>
 
                 <strong
@@ -3346,7 +3346,7 @@ function MyJet2() {
                     marginBottom: 7
                   }}
                 >
-                  🎫
+                  ðŸŽ«
                 </div>
 
                 <strong
@@ -3383,7 +3383,7 @@ function MyJet2() {
             fontSize: 11
           }}
         >
-          <span>myJet2 · Jet2 | PTFS</span>
+          <span>myJet2 Â· Jet2 | PTFS</span>
           <span>Passenger benefits programme</span>
         </footer>
       </div>
@@ -3394,6 +3394,301 @@ function MyJet2() {
             grid-template-columns: 1fr !important;
           }
         }
+      `}</style>
+    </main>
+  );
+}
+
+
+
+/* =========================================================
+   APPLICATIONS
+   ========================================================= */
+
+function ApplicationsPage() {
+  const location = useLocation();
+  const [applications, setApplications] = useState([]);
+  const [selectedType, setSelectedType] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+  const [error, setError] = useState("");
+
+  const params = new URLSearchParams(location.search);
+  const submitted = params.get("submitted") === "1";
+  const submittedId = params.get("id") || "";
+  const errorCode = params.get("error") || "";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadApplications() {
+      try {
+        const response = await fetch("/api/applications/types", {
+          method: "GET",
+          credentials: "omit"
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to load applications.");
+        if (!cancelled) setApplications(Array.isArray(data.applications) ? data.applications : []);
+      } catch (requestError) {
+        console.error("Unable to load applications:", requestError);
+        if (!cancelled) setError("We couldn't load the available applications. Please try again later.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadApplications();
+    return () => { cancelled = true; };
+  }, []);
+
+  const questions = selectedType?.questions || [];
+  const currentQuestion = questions[questionIndex] || null;
+  const currentAnswer = currentQuestion ? String(answers[currentQuestion.id] || "") : "";
+  const isLastQuestion = questionIndex === questions.length - 1;
+  const currentValid = !currentQuestion || !currentQuestion.required || currentAnswer.trim().length > 0;
+
+  function beginApplication(type) {
+    setError("");
+    setSelectedType(type);
+    setAnswers({});
+    setQuestionIndex(0);
+    setTransitioning(false);
+  }
+
+  function backToTypes() {
+    setTransitioning(true);
+    window.setTimeout(() => {
+      setSelectedType(null);
+      setAnswers({});
+      setQuestionIndex(0);
+      setTransitioning(false);
+    }, 180);
+  }
+
+  function changeQuestion(nextIndex) {
+    if (nextIndex < 0 || nextIndex >= questions.length) return;
+    setTransitioning(true);
+    window.setTimeout(() => {
+      setQuestionIndex(nextIndex);
+      setTransitioning(false);
+    }, 180);
+  }
+
+  function updateAnswer(value) {
+    if (!currentQuestion) return;
+    setAnswers((current) => ({ ...current, [currentQuestion.id]: value }));
+    if (error) setError("");
+  }
+
+  async function submitApplication() {
+    if (!selectedType || submitting) return;
+
+    const missing = questions.find((question) => {
+      const answer = String(answers[question.id] || "").trim();
+      return question.required && !answer;
+    });
+
+    if (missing) {
+      const missingIndex = questions.findIndex((question) => question.id === missing.id);
+      setError("Please answer every required question before submitting.");
+      setQuestionIndex(missingIndex);
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/applications/start", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          typeKey: selectedType.typeKey,
+          answers
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to start your application.");
+      if (!data.authorizationUrl) throw new Error("Discord verification could not be started.");
+
+      window.location.href = data.authorizationUrl;
+    } catch (requestError) {
+      console.error("Unable to submit application:", requestError);
+      setError(requestError.message || "Unable to submit your application.");
+      setSubmitting(false);
+    }
+  }
+
+  const errorMessage =
+    errorCode === "not_a_member"
+      ? "You must be a member of the Jet2 | PTFS Discord server to submit an application."
+      : errorCode === "already_applied"
+        ? "You already have an active application for this department."
+        : errorCode === "application_expired"
+          ? "That application session expired. Please start again."
+          : errorCode === "invalid_answers"
+            ? "Your application could not be verified. Please start again."
+            : "";
+
+  if (submitted) {
+    return (
+      <main className="public-page">
+        <div className="public-card" style={{ maxWidth: 720, width: "100%" }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", display: "grid", placeItems: "center", background: "#dcfce7", color: "#16a34a", fontSize: 30, marginBottom: 20 }}>âœ“</div>
+          <span className="section-label">APPLICATION SUBMITTED</span>
+          <h1 style={{ margin: "7px 0 12px" }}>You're all set.</h1>
+          <p style={{ color: "#666", lineHeight: 1.7, margin: 0 }}>
+            Your application has been verified through Discord and sent to the Jet2 | PTFS team for review.
+          </p>
+          {submittedId && (
+            <div style={{ marginTop: 22, padding: 15, borderRadius: 13, background: "#f7f7f8", border: "1px solid #e5e6e8", fontWeight: 900 }}>
+              Application ID: {submittedId}
+            </div>
+          )}
+          <p style={{ marginTop: 18, color: "#858a90", fontSize: 13, lineHeight: 1.6 }}>
+            Watch your Discord DMs for the final result once the application has been reviewed.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="public-page" style={{ alignItems: "start", paddingTop: 50 }}>
+      <div className={"application-shell" + (transitioning ? " transitioning" : "")}>
+        <div className="application-topbar">
+          <div>
+            <span className="header-kicker">JET2 | PTFS</span>
+            <h1>Applications</h1>
+          </div>
+          <div className="dashboard-badge"><span className="status-dot"></span>Applications open</div>
+        </div>
+
+        {(error || errorMessage) && (
+          <div className="application-error" role="alert">{error || errorMessage}</div>
+        )}
+
+        {loading ? (
+          <section className="application-card">
+            <span className="section-label">JET2 | PTFS</span>
+            <h2>Loading applicationsâ€¦</h2>
+            <p>Preparing the current application opportunities.</p>
+          </section>
+        ) : !selectedType ? (
+          <section className="application-card">
+            <span className="section-label">JOIN THE TEAM</span>
+            <h2>Where would you like to apply?</h2>
+            <p className="application-lead">Choose an application below. Each department has its own questions and review team.</p>
+
+            <div className="application-type-grid">
+              {applications.map((application) => (
+                <button
+                  key={application.typeKey}
+                  type="button"
+                  className="application-type-card"
+                  onClick={() => beginApplication(application)}
+                >
+                  <span className="application-type-icon">âœ¦</span>
+                  <span>
+                    <strong>{application.name}</strong>
+                    <small>{application.department}</small>
+                    <em>{application.description}</em>
+                  </span>
+                  <b>â†’</b>
+                </button>
+              ))}
+            </div>
+
+            {!applications.length && (
+              <div className="application-empty">There are no applications open right now.</div>
+            )}
+          </section>
+        ) : (
+          <section className="application-card">
+            <button type="button" className="application-back" onClick={backToTypes}>â† All applications</button>
+
+            <div className="application-progress-row">
+              <span>Question {questionIndex + 1} of {questions.length}</span>
+              <span>{Math.round(((questionIndex + 1) / Math.max(questions.length, 1)) * 100)}%</span>
+            </div>
+            <div className="application-progress"><span style={{ width: `${((questionIndex + 1) / Math.max(questions.length, 1)) * 100}%` }} /></div>
+
+            <div className="application-question">
+              <span className="section-label">{selectedType.name.toUpperCase()}</span>
+              <h2>{currentQuestion?.prompt}</h2>
+              {currentQuestion?.helpText && <p>{currentQuestion.helpText}</p>}
+              <textarea
+                value={currentAnswer}
+                onChange={(event) => updateAnswer(event.target.value)}
+                maxLength={currentQuestion?.maxLength || 1500}
+                autoFocus
+                placeholder="Write your answer hereâ€¦"
+              />
+              <div className="application-answer-meta">
+                <span>{currentQuestion?.required ? "Required" : "Optional"}</span>
+                <span>{currentAnswer.length}/{currentQuestion?.maxLength || 1500}</span>
+              </div>
+            </div>
+
+            <div className="application-navigation">
+              <button type="button" className="secondary-button" onClick={() => questionIndex === 0 ? backToTypes() : changeQuestion(questionIndex - 1)}>Back</button>
+              {isLastQuestion ? (
+                <button type="button" className="primary-button" onClick={submitApplication} disabled={!currentValid || submitting}>
+                  {submitting ? "Preparing Discord verificationâ€¦" : "Review & submit â†’"}
+                </button>
+              ) : (
+                <button type="button" className="primary-button" onClick={() => currentValid && changeQuestion(questionIndex + 1)} disabled={!currentValid}>Next â†’</button>
+              )}
+            </div>
+          </section>
+        )}
+
+        <p className="application-footer-note">Applications are reviewed by the relevant Jet2 | PTFS team. Discord membership is verified server-side before an application is submitted.</p>
+      </div>
+
+      <style>{`
+        .application-shell { width: min(980px, 100%); animation: applicationFadeIn .28s ease both; }
+        .application-shell.transitioning { animation: applicationFadeOut .18s ease both; }
+        .application-topbar { display:flex; justify-content:space-between; align-items:end; gap:20px; margin-bottom:22px; flex-wrap:wrap; }
+        .application-topbar h1 { margin:5px 0 0; font-size:clamp(30px,5vw,44px); letter-spacing:-.04em; }
+        .application-card { background:#fff; border:1px solid #e1e3e6; border-radius:24px; box-shadow:0 18px 55px rgba(23,25,29,.07); padding:clamp(24px,5vw,42px); }
+        .application-card h2 { margin:7px 0 10px; font-size:clamp(27px,4vw,38px); letter-spacing:-.04em; }
+        .application-lead { margin:0; color:#70757c; line-height:1.65; }
+        .application-type-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:28px; }
+        .application-type-card { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px; text-align:left; border:1px solid #e1e3e6; background:#fff; border-radius:17px; padding:17px; cursor:pointer; transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease; }
+        .application-type-card:hover { transform:translateY(-2px); border-color:#d71920; box-shadow:0 10px 25px rgba(23,25,29,.08); }
+        .application-type-icon { width:40px; height:40px; display:grid; place-items:center; border-radius:12px; background:#fff0f1; color:#d71920; font-weight:900; }
+        .application-type-card strong,.application-type-card small,.application-type-card em { display:block; }
+        .application-type-card strong { color:#17191d; font-size:16px; }
+        .application-type-card small { color:#d71920; font-weight:800; margin-top:3px; }
+        .application-type-card em { color:#747980; font-size:12px; line-height:1.5; font-style:normal; margin-top:6px; }
+        .application-type-card b { color:#d71920; font-size:20px; }
+        .application-empty { margin-top:22px; padding:18px; border-radius:14px; background:#f7f7f8; color:#777; }
+        .application-back { border:0; background:none; padding:0; color:#6c7178; font-weight:800; cursor:pointer; margin-bottom:24px; }
+        .application-progress-row { display:flex; justify-content:space-between; color:#777; font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+        .application-progress { height:6px; border-radius:999px; background:#e7e8ea; overflow:hidden; margin:9px 0 34px; }
+        .application-progress span { display:block; height:100%; background:#d71920; transition:width .2s ease; }
+        .application-question h2 { margin-top:7px; }
+        .application-question p { color:#70757c; line-height:1.6; margin:0 0 20px; }
+        .application-question textarea { width:100%; min-height:210px; box-sizing:border-box; resize:vertical; border:1px solid #d9dade; border-radius:15px; padding:16px; font:inherit; font-size:15px; line-height:1.6; outline:none; transition:border-color .15s ease,box-shadow .15s ease; }
+        .application-question textarea:focus { border-color:#d71920; box-shadow:0 0 0 3px rgba(215,25,32,.08); }
+        .application-answer-meta { display:flex; justify-content:space-between; color:#8a8f96; font-size:11px; margin-top:7px; }
+        .application-navigation { display:flex; justify-content:space-between; gap:12px; margin-top:24px; }
+        .application-navigation .primary-button,.application-navigation .secondary-button { border-radius:12px; padding:13px 18px; font-weight:900; cursor:pointer; }
+        .application-navigation .primary-button { border:0; background:#d71920; color:#fff; }
+        .application-navigation .primary-button:disabled { background:#dedfe1; color:#92969c; cursor:not-allowed; }
+        .application-navigation .secondary-button { border:1px solid #d9dade; background:#fff; color:#555a60; }
+        .application-error { margin-bottom:15px; padding:13px 15px; border:1px solid #efb7ba; border-radius:12px; background:#fff4f4; color:#a30f16; font-size:13px; font-weight:700; }
+        .application-footer-note { color:#8a8f96; text-align:center; font-size:11px; line-height:1.6; margin:15px auto 0; max-width:760px; }
+        @keyframes applicationFadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes applicationFadeOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-4px); } }
+        @media (max-width:700px) { .application-type-grid { grid-template-columns:1fr; } .application-navigation { flex-direction:column-reverse; } .application-navigation button { width:100%; } }
       `}</style>
     </main>
   );
@@ -3531,7 +3826,12 @@ function App() {
       <Routes>
         <Route
           path="/"
-          element={<Home />}
+          element={<ApplicationsPage />}
+        />
+
+        <Route
+          path="/apply"
+          element={<ApplicationsPage />}
         />
 
         <Route
