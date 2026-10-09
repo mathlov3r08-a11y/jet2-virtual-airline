@@ -3095,8 +3095,6 @@ components: [{
   });
 
   if (!forumResponse.ok) {
-
-  if (!forumResponse.ok) {
     const errorText = await forumResponse.text();
     throw new Error(`Discord forum creation failed: ${errorText}`);
   }
