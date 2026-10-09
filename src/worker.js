@@ -3276,7 +3276,7 @@ async function handleApplicationInteraction(env, request) {
           components: [
             { type: 2, style: decision === "passed" ? 3 : 4, label: decision === "passed" ? "Application Passed" : "Application Failed", custom_id: `application:${decision}:result`, disabled: true }
           ]
-        ]
+        }]
       })
     });
   }
