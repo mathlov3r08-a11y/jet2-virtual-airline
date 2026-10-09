@@ -799,6 +799,22 @@ async function handleDiscordCallback(
     MYJET2_OAUTH_STATE_COOKIE
   );
 
+  const applicationState = getCookie(
+    request,
+    APPLICATION_STATE_COOKIE
+  );
+
+  if (
+    returnedState &&
+    applicationState &&
+    returnedState === applicationState
+  ) {
+    return handleApplicationCallback(
+      env,
+      request
+    );
+  }
+
   if (
     returnedState &&
     myJet2State &&
@@ -2770,6 +2786,507 @@ async function handleStaffPage(
 }
 
 
+
+
+/* =========================================================
+   APPLICATION SYSTEM
+   ========================================================= */
+
+const APPLICATION_STATE_COOKIE = "jet2_application_oauth_state";
+const APPLICATION_DRAFT_COOKIE = "jet2_application_draft";
+
+const APPLICATION_REVIEW_ROLES = {
+  hr: [ROLES.hrm, ROLES.shro, ROLES.hro],
+  pr: [ROLES.prm, ROLES.sprc, ROLES.prc, ROLES.bm, ROLES.sms, ROLES.ms],
+  flight_ops: [ROLES.som, ROLES.fom],
+  management: [ROLES.generalManager, ROLES.coordinator]
+};
+
+function applicationHasReviewerRole(member, reviewerGroup) {
+  const roles = new Set(member?.roles || []);
+  if (roles.has(ROLES.leadership) || roles.has(ROLES.bod)) return true;
+  return (APPLICATION_REVIEW_ROLES[reviewerGroup] || []).some((roleId) => roles.has(roleId));
+}
+
+function applicationAnswersAreValid(questions, answers) {
+  if (!answers || typeof answers !== "object" || Array.isArray(answers)) return false;
+
+  for (const question of questions) {
+    const value = typeof answers[String(question.id)] === "string"
+      ? answers[String(question.id)].trim()
+      : "";
+
+    if (question.required && !value) return false;
+    if (value.length > Number(question.max_length || 1500)) return false;
+  }
+
+  return true;
+}
+
+function applicationPublicId() {
+  return `J2-${randomToken(5).toUpperCase()}`;
+}
+
+function truncateDiscordText(value, max = 1024) {
+  const text = String(value ?? "");
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1)}â€¦`;
+}
+
+async function getApplicationType(env, typeKey) {
+  return env.DB.prepare(
+    `
+      SELECT id, type_key, name, description, department, reviewer_group, active
+      FROM application_types
+      WHERE type_key = ?
+        AND active = 1
+      LIMIT 1
+    `
+  ).bind(typeKey).first();
+}
+
+async function getApplicationQuestions(env, applicationTypeId) {
+  const result = await env.DB.prepare(
+    `
+      SELECT id, question_order, prompt, help_text, required, max_length
+      FROM application_questions
+      WHERE application_type_id = ?
+        AND active = 1
+      ORDER BY question_order ASC
+    `
+  ).bind(applicationTypeId).all();
+
+  return result.results || [];
+}
+
+async function handleApplicationTypes(env) {
+  const result = await env.DB.prepare(
+    `
+      SELECT
+        t.id,
+        t.type_key,
+        t.name,
+        t.description,
+        t.department,
+        t.reviewer_group,
+        q.id AS question_id,
+        q.question_order,
+        q.prompt,
+        q.help_text,
+        q.required,
+        q.max_length
+      FROM application_types t
+      LEFT JOIN application_questions q
+        ON q.application_type_id = t.id
+       AND q.active = 1
+      WHERE t.active = 1
+      ORDER BY t.id ASC, q.question_order ASC
+    `
+  ).all();
+
+  const map = new Map();
+  for (const row of result.results || []) {
+    if (!map.has(row.type_key)) {
+      map.set(row.type_key, {
+        id: row.id,
+        typeKey: row.type_key,
+        name: row.name,
+        description: row.description,
+        department: row.department,
+        questions: []
+      });
+    }
+
+    if (row.question_id) {
+      map.get(row.type_key).questions.push({
+        id: row.question_id,
+        order: row.question_order,
+        prompt: row.prompt,
+        helpText: row.help_text,
+        required: Boolean(row.required),
+        maxLength: row.max_length
+      });
+    }
+  }
+
+  return json({ applications: [...map.values()] });
+}
+
+async function handleApplicationStart(env, request) {
+  if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
+
+  const body = await request.json().catch(() => null);
+  const typeKey = String(body?.typeKey || "").trim();
+  const answers = body?.answers;
+
+  const type = await getApplicationType(env, typeKey);
+  if (!type) return json({ error: "That application is not currently available." }, 404);
+
+  const questions = await getApplicationQuestions(env, type.id);
+  if (!questions.length) return json({ error: "This application has no questions configured yet." }, 409);
+
+  if (!applicationAnswersAreValid(questions, answers)) {
+    return json({ error: "Please complete every required question and stay within the stated limits." }, 400);
+  }
+
+  const publicId = applicationPublicId();
+
+  await env.DB.prepare(
+    `
+      INSERT INTO applications (
+        public_id,
+        application_type_id,
+        status,
+        answers_json
+      )
+      VALUES (?, ?, 'awaiting_discord', ?)
+    `
+  ).bind(publicId, type.id, JSON.stringify(answers)).run();
+
+  const state = randomToken(24);
+  const authorizeUrl = new URL("https://discord.com/oauth2/authorize");
+  authorizeUrl.searchParams.set("client_id", DISCORD_CLIENT_ID);
+  authorizeUrl.searchParams.set("response_type", "code");
+  authorizeUrl.searchParams.set("redirect_uri", DISCORD_REDIRECT_URI);
+  authorizeUrl.searchParams.set("scope", "identify guilds.members.read");
+  authorizeUrl.searchParams.set("state", state);
+
+  return json({
+    ok: true,
+    authorizationUrl: authorizeUrl.toString()
+  }, 200, [
+    ["Set-Cookie", makeCookie(APPLICATION_STATE_COOKIE, state)],
+    ["Set-Cookie", makeCookie(APPLICATION_DRAFT_COOKIE, publicId)]
+  ]);
+}
+
+async function handleApplicationCallback(env, request) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+  const returnedState = url.searchParams.get("state");
+  const storedState = getCookie(request, APPLICATION_STATE_COOKIE);
+  const draftId = getCookie(request, APPLICATION_DRAFT_COOKIE);
+
+  const clearApplicationCookies = [
+    ["Set-Cookie", clearCookie(APPLICATION_STATE_COOKIE)],
+    ["Set-Cookie", clearCookie(APPLICATION_DRAFT_COOKIE)]
+  ];
+
+  if (!code || !returnedState || !storedState || returnedState !== storedState || !draftId) {
+    return new Response("Invalid application OAuth state.", { status: 400, headers: new Headers(clearApplicationCookies) });
+  }
+
+  const application = await env.DB.prepare(
+    `
+      SELECT
+        a.id,
+        a.public_id,
+        a.status,
+        a.answers_json,
+        t.id AS application_type_id,
+        t.type_key,
+        t.name,
+        t.description,
+        t.department,
+        t.reviewer_group
+      FROM applications a
+      JOIN application_types t ON t.id = a.application_type_id
+      WHERE a.public_id = ?
+      LIMIT 1
+    `
+  ).bind(draftId).first();
+
+  if (!application || application.status !== "awaiting_discord") {
+    return redirect("/apply?error=application_expired", clearApplicationCookies);
+  }
+
+  const tokenResponse = await fetch("https://discord.com/api/v10/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: DISCORD_CLIENT_ID,
+      client_secret: env.DISCORD_CLIENT_SECRET,
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: DISCORD_REDIRECT_URI
+    })
+  });
+
+  if (!tokenResponse.ok) {
+    return new Response("Discord authentication failed.", { status: 401, headers: new Headers(clearApplicationCookies) });
+  }
+
+  const tokenData = await tokenResponse.json();
+  const discordUser = await getDiscordUser(tokenData.access_token);
+  const member = await getGuildMember(env, discordUser.id);
+
+  if (!member) {
+    return redirect("/apply?error=not_a_member", clearApplicationCookies);
+  }
+
+  const duplicate = await env.DB.prepare(
+    `
+      SELECT public_id
+      FROM applications
+      WHERE discord_user_id = ?
+        AND application_type_id = ?
+        AND status IN ('awaiting_discord', 'submitted', 'under_review')
+      LIMIT 1
+    `
+  ).bind(discordUser.id, application.application_type_id).first();
+
+  if (duplicate && duplicate.public_id !== application.public_id) {
+    return redirect("/apply?error=already_applied", clearApplicationCookies);
+  }
+
+  const questions = await getApplicationQuestions(env, application.application_type_id);
+  const answers = JSON.parse(application.answers_json || "{}");
+
+  if (!applicationAnswersAreValid(questions, answers)) {
+    return redirect("/apply?error=invalid_answers", clearApplicationCookies);
+  }
+
+  const fields = questions.map((question) => ({
+    name: truncateDiscordText(`${question.question_order}. ${question.prompt}`, 256),
+    value: truncateDiscordText(answers[String(question.id)] || "No answer provided.", 1024),
+    inline: false
+  }));
+
+  const forumChannelId = env.APPLICATION_FORUM_CHANNEL_ID || "1557934152828063874";
+  const resultsChannelId = env.APPLICATION_RESULTS_CHANNEL_ID || "1536053234760941578";
+
+  if (!forumChannelId || !resultsChannelId || !env.DISCORD_BOT_TOKEN) {
+    throw new Error("Application Discord configuration is incomplete.");
+  }
+
+  const initialContent = [
+    `# ${application.name} application`,
+    `**Applicant:** ${discordUser.username}`,
+    `**Discord ID:** ${discordUser.id}`,
+    `**Application ID:** ${application.public_id}`,
+    "",
+    "Use the buttons below to review this application."
+  ].join("\\n");
+
+  const forumResponse = await discordBotRequestWithJson(env, `/channels/${forumChannelId}/threads`, {
+    method: "POST",
+    body: JSON.stringify({
+      name: truncateDiscordText(`${application.name} â€” ${discordUser.username}`, 100),
+      message: {
+        content: initialContent,
+        embeds: [{
+          title: `Jet2 | PTFS â€” ${application.name}`,
+          description: application.description,
+          color: 0xd71920,
+          fields,
+          footer: { text: `${application.public_id} â€¢ Verified Discord member` },
+          timestamp: new Date().toISOString()
+        }],
+        components: [{
+          type: 1,
+          components: [
+            { type: 2, style: 3, label: "Pass Application", custom_id: `application:pass:${application.public_id}` },
+            { type: 2, style: 4, label: "Fail Application", custom_id: `application:fail:${application.public_id}` }
+          ]
+        ]
+      }
+    })
+  });
+
+  if (!forumResponse.ok) {
+    const errorText = await forumResponse.text();
+    throw new Error(`Discord forum creation failed: ${errorText}`);
+  }
+
+  const forumThread = await forumResponse.json();
+
+  await env.DB.prepare(
+    `
+      UPDATE applications
+      SET
+        status = 'submitted',
+        discord_user_id = ?,
+        discord_username = ?,
+        discord_global_name = ?,
+        forum_thread_id = ?,
+        submitted_at = CURRENT_TIMESTAMP
+      WHERE public_id = ?
+    `
+  ).bind(
+    discordUser.id,
+    discordUser.username,
+    discordUser.global_name || "",
+    forumThread.id,
+    application.public_id
+  ).run();
+
+  return redirect(`/apply?submitted=1&id=${encodeURIComponent(application.public_id)}`, clearApplicationCookies);
+}
+
+async function discordBotRequestWithJson(env, endpoint, options = {}) {
+  const headers = new Headers(options.headers || {});
+  headers.set("Authorization", `Bot ${env.DISCORD_BOT_TOKEN}`);
+  headers.set("Content-Type", "application/json");
+  return fetch(`https://discord.com/api/v10${endpoint}`, { ...options, headers });
+}
+
+function hexToBytes(hex) {
+  const clean = String(hex || "").trim();
+  const bytes = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
+  return bytes;
+}
+
+async function verifyDiscordInteraction(request, env, rawBody) {
+  const signature = request.headers.get("X-Signature-Ed25519");
+  const timestamp = request.headers.get("X-Signature-Timestamp");
+  const publicKey = env.DISCORD_PUBLIC_KEY || "bc89fb377421963849f5fffd5eac04f8a7724a17f311fce5b107b3cf83d9690b";
+  if (!signature || !timestamp || !publicKey) return false;
+
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      hexToBytes(publicKey),
+      { name: "Ed25519" },
+      false,
+      ["verify"]
+    );
+
+    return await crypto.subtle.verify(
+      "Ed25519",
+      key,
+      hexToBytes(signature),
+      new TextEncoder().encode(timestamp + rawBody)
+    );
+  } catch (error) {
+    console.error("Discord interaction verification failed:", error);
+    return false;
+  }
+}
+
+async function handleApplicationInteraction(env, request) {
+  const rawBody = await request.text();
+  if (!(await verifyDiscordInteraction(request, env, rawBody))) {
+    return new Response("Invalid request signature.", { status: 401 });
+  }
+
+  const interaction = JSON.parse(rawBody);
+
+  if (interaction.type === 1) {
+    return json({ type: 1 });
+  }
+
+  if (interaction.type !== 3) {
+    return json({ type: 4, data: { content: "Unsupported interaction.", flags: 64 } });
+  }
+
+  const customId = String(interaction.data?.custom_id || "");
+  const match = customId.match(/^application:(pass|fail):(.+)$/);
+  if (!match) return json({ type: 4, data: { content: "Unknown application action.", flags: 64 } });
+
+  const decision = match[1] === "pass" ? "passed" : "failed";
+  const publicId = match[2];
+  const reviewerId = interaction.member?.user?.id;
+  const reviewerUsername = interaction.member?.user?.username || "Staff Member";
+
+  const application = await env.DB.prepare(
+    `
+      SELECT
+        a.*,
+        t.name,
+        t.reviewer_group
+      FROM applications a
+      JOIN application_types t ON t.id = a.application_type_id
+      WHERE a.public_id = ?
+      LIMIT 1
+    `
+  ).bind(publicId).first();
+
+  if (!application) return json({ type: 4, data: { content: "Application not found.", flags: 64 } });
+  if (!reviewerId) return json({ type: 4, data: { content: "Unable to verify your staff identity.", flags: 64 } });
+  if (application.status === "decided") return json({ type: 4, data: { content: "This application has already been decided.", flags: 64 } });
+
+  if (!applicationHasReviewerRole(interaction.member, application.reviewer_group)) {
+    return json({ type: 4, data: { content: "You are not authorized to review this application.", flags: 64 } });
+  }
+
+  await env.DB.prepare(
+    `
+      UPDATE applications
+      SET
+        status = 'decided',
+        decision = ?,
+        reviewer_discord_user_id = ?,
+        reviewer_username = ?,
+        decided_at = CURRENT_TIMESTAMP
+      WHERE public_id = ?
+    `
+  ).bind(decision, reviewerId, reviewerUsername, publicId).run();
+
+  const applicantMessage = decision === "passed"
+    ? `ðŸŽ‰ **Your ${application.name} application has been accepted!**\\n\\nYour application **${publicId}** has been approved by **${reviewerUsername}**. A member of the team will provide any next steps in Discord.`
+    : `Thank you for applying to **Jet2 | PTFS**.\\n\\nYour **${application.name}** application (${publicId}) was not successful this time. You are welcome to apply again when the relevant application opens again.`;
+
+  if (application.discord_user_id) {
+    try {
+      const dmChannelResponse = await discordBotRequestWithJson(env, "/users/@me/channels", {
+        method: "POST",
+        body: JSON.stringify({ recipient_id: application.discord_user_id })
+      });
+      if (dmChannelResponse.ok) {
+        const dmChannel = await dmChannelResponse.json();
+        await discordBotRequestWithJson(env, `/channels/${dmChannel.id}/messages`, {
+          method: "POST",
+          body: JSON.stringify({ content: applicantMessage })
+        });
+      }
+    } catch (error) {
+      console.error("Unable to DM application result:", error);
+    }
+  }
+
+  if (env.APPLICATION_RESULTS_CHANNEL_ID) {
+    await discordBotRequestWithJson(env, `/channels/${env.APPLICATION_RESULTS_CHANNEL_ID}/messages`, {
+      method: "POST",
+      body: JSON.stringify({
+        embeds: [{
+          title: `Application ${decision === "passed" ? "Passed" : "Failed"}`,
+          description: `${application.name} â€” ${publicId}`,
+          color: decision === "passed" ? 0x22c55e : 0xd71920,
+          fields: [
+            { name: "Applicant", value: `<@${application.discord_user_id}>`, inline: true },
+            { name: "Reviewed by", value: reviewerUsername, inline: true },
+            { name: "Decision", value: decision === "passed" ? "Passed" : "Failed", inline: true }
+          ],
+          timestamp: new Date().toISOString()
+        }]
+      })
+    });
+  }
+
+  if (application.forum_thread_id) {
+    await discordBotRequestWithJson(env, `/channels/${application.forum_thread_id}/messages/${application.forum_thread_id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        components: [{
+          type: 1,
+          components: [
+            { type: 2, style: decision === "passed" ? 3 : 4, label: decision === "passed" ? "Application Passed" : "Application Failed", custom_id: `application:${decision}:result`, disabled: true }
+          ]
+        ]
+      })
+    });
+  }
+
+  return json({
+    type: 4,
+    data: {
+      content: `Application **${publicId}** marked **${decision === "passed" ? "PASSED" : "FAILED"}**. The applicant has been notified.`,
+      flags: 64
+    }
+  });
+}
+
 /* =========================================================
    MYJET2 PASSENGER AUTH + CORE API
    ========================================================= */
@@ -3086,7 +3603,7 @@ async function handleMyJet2Login(env, request) {
 
   if (username && !MYJET2_USERNAME_PATTERN.test(username)) {
     return new Response(
-      "Invalid myJet2 username. Use 3–20 letters, numbers, spaces, hyphens, or underscores.",
+      "Invalid myJet2 username. Use 3â€“20 letters, numbers, spaces, hyphens, or underscores.",
       { status: 400 }
     );
   }
@@ -4181,6 +4698,38 @@ export default {
       if (
         request.method === "GET" &&
         url.pathname ===
+          "/api/applications/types"
+      ) {
+        return await handleApplicationTypes(
+          env
+        );
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname ===
+          "/api/applications/start"
+      ) {
+        return await handleApplicationStart(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname ===
+          "/api/discord/interactions"
+      ) {
+        return await handleApplicationInteraction(
+          env,
+          request
+        );
+      }
+
+      if (
+        request.method === "GET" &&
+        url.pathname ===
           "/api/myjet2/auth/discord"
       ) {
         return await handleMyJet2Login(env, request);
@@ -4338,6 +4887,20 @@ export default {
           env,
           request
         );
+      }
+
+      if (
+        request.method === "GET" &&
+        (
+          url.pathname === "/apply" ||
+          url.pathname.startsWith("/apply/")
+        )
+      ) {
+        const indexRequest = new Request(
+          new URL("/index.html", request.url),
+          { method: "GET", headers: request.headers }
+        );
+        return env.ASSETS.fetch(indexRequest);
       }
 
       if (
