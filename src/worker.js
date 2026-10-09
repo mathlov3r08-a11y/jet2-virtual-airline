@@ -3082,16 +3082,19 @@ async function handleApplicationCallback(env, request) {
           footer: { text: `${application.public_id} â€¢ Verified Discord member` },
           timestamp: new Date().toISOString()
         }],
-        components: [{
-          type: 1,
-          components: [
-            { type: 2, style: 3, label: "Pass Application", custom_id: `application:pass:${application.public_id}` },
-            { type: 2, style: 4, label: "Fail Application", custom_id: `application:fail:${application.public_id}` }
-          ]
-        ]
+        
+components: [{
+  type: 1,
+  components: [
+    { type: 2, style: 3, label: "Pass Application", custom_id: `application:pass:${application.public_id}` },
+    { type: 2, style: 4, label: "Fail Application", custom_id: `application:fail:${application.public_id}` }
+  ]
+}]
       }
     })
   });
+
+  if (!forumResponse.ok) {
 
   if (!forumResponse.ok) {
     const errorText = await forumResponse.text();
