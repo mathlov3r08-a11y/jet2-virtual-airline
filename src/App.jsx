@@ -2597,6 +2597,52 @@ function MyJet2Registration() {
 }
 
 /* =========================================================
+   MYJET2 DEDICATED SIGN-IN PAGE
+   ========================================================= */
+
+function MyJet2LoginPage() {
+  const params = new URLSearchParams(window.location.search);
+  const expired = params.get("reason") === "session_expired";
+  const error = params.get("error");
+  const [starting, setStarting] = useState(false);
+
+  function continueWithDiscord() {
+    if (starting) return;
+    setStarting(true);
+    window.location.assign("/api/myjet2/auth/discord");
+  }
+
+  return (
+    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "linear-gradient(180deg, #fff 0%, #f4f5f6 100%)", color: "#17191d", fontFamily: "Arial, Helvetica, sans-serif" }}>
+      <section style={{ width: "min(460px, 100%)", background: "#fff", border: "1px solid #e4e5e7", borderRadius: 24, padding: "clamp(24px, 6vw, 40px)", boxShadow: "0 18px 50px rgba(20, 24, 30, .08)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, display: "grid", placeItems: "center", background: "#d71920", color: "#fff", fontWeight: 900, fontSize: 17 }}>J2</div>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 23, letterSpacing: "-.04em" }}>my<span style={{ color: "#d71920" }}>Jet2</span></div>
+            <div style={{ color: "#858a91", fontSize: 10, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase" }}>Passenger account</div>
+          </div>
+        </div>
+
+        <div style={{ color: "#d71920", fontSize: 11, fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>WELCOME BACK</div>
+        <h1 style={{ fontSize: "clamp(30px, 7vw, 40px)", lineHeight: 1.05, letterSpacing: "-.045em", margin: "10px 0 12px" }}>Sign in to myJet2</h1>
+        <p style={{ color: "#686e76", fontSize: 15, lineHeight: 1.65, margin: "0 0 24px" }}>Sign in securely with Discord to see your points, rewards and passenger perks. You do not need a separate myJet2 password.</p>
+
+        {expired && <div role="status" style={{ marginBottom: 18, padding: "12px 14px", borderRadius: 12, background: "#fff7e8", border: "1px solid #f2d8a7", color: "#7b4c00", fontSize: 13, lineHeight: 1.5 }}>Your session has expired for your security. Please sign in again to continue.</div>}
+        {error === "not_a_member" && <div role="alert" style={{ marginBottom: 18, padding: "12px 14px", borderRadius: 12, background: "#fff5f5", border: "1px solid #efc5c7", color: "#a30f16", fontSize: 13, lineHeight: 1.5 }}>You need to be a member of the Jet2 | PTFS Discord server to use myJet2.</div>}
+        {error === "oauth" && <div role="alert" style={{ marginBottom: 18, padding: "12px 14px", borderRadius: 12, background: "#fff5f5", border: "1px solid #efc5c7", color: "#a30f16", fontSize: 13, lineHeight: 1.5 }}>Discord sign-in did not complete. Please try again.</div>}
+
+        <button type="button" onClick={continueWithDiscord} disabled={starting} style={{ width: "100%", border: 0, borderRadius: 13, padding: "15px 18px", background: "#5865f2", color: "#fff", fontSize: 15, fontWeight: 900, cursor: starting ? "wait" : "pointer", opacity: starting ? .75 : 1 }}>
+          {starting ? "Connecting to Discordâ€¦" : "Continue with Discord"}
+        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0", color: "#a0a4aa", fontSize: 11, fontWeight: 800, letterSpacing: ".1em" }}><span style={{ height: 1, flex: 1, background: "#e7e8ea" }} />NEW TO MYJET2?<span style={{ height: 1, flex: 1, background: "#e7e8ea" }} /></div>
+        <Link to="/myjet2/register" style={{ display: "block", textAlign: "center", border: "1px solid #dedfe2", borderRadius: 13, padding: "14px 18px", color: "#24272c", fontSize: 14, fontWeight: 800, textDecoration: "none" }}>Create a myJet2 account</Link>
+        <p style={{ margin: "22px 0 0", color: "#92969c", fontSize: 12, lineHeight: 1.6, textAlign: "center" }}>Secure sign-in is provided by Discord. Jet2 | PTFS will never ask for your Discord password on this page.</p>
+      </section>
+    </main>
+  );
+}
+
+/* =========================================================
    MYJET2 PASSENGER FRONT VIEW
    ========================================================= */
 
@@ -2625,7 +2671,8 @@ function MyJet2() {
         if (!response.ok) {
           if (response.status === 401 || response.status === 403) {
             if (!cancelled) {
-              setError("Please sign in with Discord to access myJet2.");
+              const reason = response.status === 401 ? "?reason=session_expired" : "";
+              window.location.replace(`/myjet2/login${reason}`);
             }
             return;
           }
@@ -4059,6 +4106,11 @@ function App() {
         <Route
           path="/leadership"
           element={<ExecutiveStaffPage />}
+        />
+
+        <Route
+          path="/myjet2/login"
+          element={<MyJet2LoginPage />}
         />
 
         <Route
