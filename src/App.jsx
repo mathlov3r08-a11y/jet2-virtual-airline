@@ -335,6 +335,10 @@ function StaffLayout({
     });
   }
 
+  if (rank?.title === "CHRO" || rank?.name === "CHRO" || positions.some((item) => item?.position === "CHRO" || item?.rank === "CHRO")) {
+    navigation.push({ label: "Application Controls", path: "/staff/application-controls" });
+  }
+
   const rankTitle =
     getRankTitle(rank);
 
@@ -1053,6 +1057,11 @@ function OwnerControlRoom({ ownerData, onLogout }) {
             <div><h3>Organization</h3><p>Manage Leadership, Board of Directors and future Directors records.</p></div>
             <span className="card-arrow">â†’</span>
           </Link>
+          <Link to="/staff/owner/applications" className="dashboard-card">
+            <span className="card-icon">ðŸ“</span>
+            <div><h3>Application Builder</h3><p>Create and edit application forms, images, requirements, and questions.</p></div>
+            <span className="card-arrow">â†’</span>
+          </Link>
           <div className="dashboard-card">
             <span className="card-icon">ðŸ”</span>
             <div><h3>Owner Security</h3><p>Privileged access is protected by your password and authenticator code.</p></div>
@@ -1118,6 +1127,7 @@ function OwnerPortal() {
     <Routes>
       <Route index element={<OwnerControlRoom ownerData={ownerData} onLogout={logoutOwner} />} />
       <Route path="organization" element={<OwnerOrganization />} />
+      <Route path="applications" element={<OwnerApplicationManager />} />
     </Routes>
   );
 }
@@ -1422,6 +1432,155 @@ function OrganizationCard({ person, onEdit, onArchive, onRestore }) {
       </div>
     </article>
   );
+}
+
+function OwnerApplicationManager() {
+  const [applications, setApplications] = useState([]);
+  const [editing, setEditing] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  async function loadApplications() {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/owner/applications", { credentials: "include" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to load application forms.");
+      setApplications(data.applications || []);
+    } catch (err) { setError(err.message || "Unable to load application forms."); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { loadApplications(); }, []);
+
+  function newDraft() {
+    setNotice(""); setError("");
+    setEditing({ name: "", description: "", department: "", reviewerGroup: "hr", imageUrl: "", requirements: "", published: false, questions: [{ prompt: "", helpText: "", required: true, maxLength: 1500 }] });
+  }
+
+  function updateField(key, value) { setEditing((current) => ({ ...current, [key]: value })); }
+  function updateQuestion(index, key, value) {
+    setEditing((current) => ({ ...current, questions: current.questions.map((q, i) => i === index ? { ...q, [key]: value } : q) }));
+  }
+  function addQuestion() { setEditing((current) => ({ ...current, questions: [...current.questions, { prompt: "", helpText: "", required: true, maxLength: 1500 }] })); }
+  function removeQuestion(index) { setEditing((current) => ({ ...current, questions: current.questions.filter((_, i) => i !== index) })); }
+  function moveQuestion(index, direction) {
+    setEditing((current) => {
+      const next = [...current.questions];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return current;
+      [next[index], next[target]] = [next[target], next[index]];
+      return { ...current, questions: next };
+    });
+  }
+
+  async function saveDraft(event) {
+    event.preventDefault(); if (saving || !editing) return;
+    setSaving(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(editing.id ? "/api/owner/applications" : "/api/owner/applications", {
+        method: editing.id ? "PUT" : "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editing)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to save this application.");
+      setApplications(data.applications || []); setEditing(null); setNotice("Application saved. Publishing controls whether it appears publicly; the CHRO separately controls whether it is open.");
+    } catch (err) { setError(err.message || "Unable to save this application."); }
+    finally { setSaving(false); }
+  }
+
+  const fieldStyle = { width: "100%", boxSizing: "border-box", padding: "11px 12px", border: "1px solid #d9dade", borderRadius: 10, font: "inherit", marginTop: 6 };
+  const labelStyle = { display: "block", fontWeight: 800, fontSize: 13, marginTop: 14 };
+  const buttonStyle = { border: 0, borderRadius: 10, padding: "11px 14px", background: "#d71920", color: "white", fontWeight: 900, cursor: "pointer" };
+
+  return <main className="public-page"><div className="public-card" style={{ maxWidth: 1000, width: "100%" }}>
+    <span className="header-kicker">OWNER CONTROL ROOM / RECRUITMENT</span><h1>Application Builder</h1>
+    <p style={{ color: "#666", lineHeight: 1.6 }}>Create and maintain application forms. Saving a new application leaves it closed; the CHRO controls when it becomes available.</p>
+    {error && <div role="alert" style={{ marginTop: 16, padding: 12, borderRadius: 10, background: "#fff1f1", color: "#a40000" }}>{error}</div>}
+    {notice && <div role="status" style={{ marginTop: 16, padding: 12, borderRadius: 10, background: "#eefbf2", color: "#176b38" }}>{notice}</div>}
+    {!editing && <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 24 }}><h2 style={{ margin: 0 }}>Saved applications</h2><button type="button" style={buttonStyle} onClick={newDraft}>+ Create application</button></div>}
+    {loading ? <p>Loading saved applicationsâ€¦</p> : !editing ? <div style={{ display: "grid", gap: 12, marginTop: 18 }}>{applications.map((app) => <article key={app.id} style={{ border: "1px solid #e5e5e5", borderRadius: 14, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>{app.imageUrl && <img src={app.imageUrl} alt="" style={{ width: 62, height: 48, objectFit: "cover", borderRadius: 8 }} />}<div><strong>{app.name}</strong><div style={{ color: "#777", fontSize: 12, marginTop: 4 }}>{app.department} Â· {app.questions.length} questions Â· {app.isPublished ? "Published" : "Draft"} Â· {app.isOpen ? "Open" : "Closed"}</div></div></div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" style={{ ...buttonStyle, background: "#303238" }} onClick={() => { setEditing({ ...app, published: Boolean(app.isPublished) }); setError(""); setNotice(""); }}>Edit form</button>
+        <button type="button" style={{ ...buttonStyle, background: "#a40000" }} onClick={async () => {
+          if (!window.confirm(`Delete â€œ${app.name}â€? This is only allowed if nobody has submitted an application for it.`)) return;
+          setError(""); setNotice("");
+          try {
+            const response = await fetch("/api/owner/applications", { method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: app.id }) });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || "Unable to delete this application.");
+            setApplications(data.applications || []); setNotice("Application deleted.");
+          } catch (err) { setError(err.message || "Unable to delete this application."); }
+        }}>Delete</button>
+      </div>
+    </article>)}</div> : <form onSubmit={saveDraft} style={{ marginTop: 22, borderTop: "1px solid #eee", paddingTop: 14 }}>
+      <h2>{editing.id ? "Edit application" : "Create application"}</h2>
+      <label style={labelStyle}>Application name<input style={fieldStyle} value={editing.name} onChange={(e) => updateField("name", e.target.value)} required maxLength={100} /></label>
+      <label style={labelStyle}>Department<input style={fieldStyle} value={editing.department} onChange={(e) => updateField("department", e.target.value)} required maxLength={100} placeholder="Human Resources" /></label>
+      <label style={labelStyle}>Description<textarea style={{ ...fieldStyle, minHeight: 82 }} value={editing.description} onChange={(e) => updateField("description", e.target.value)} maxLength={2000} /></label>
+      <label style={labelStyle}>Application image URL (HTTPS)<input style={fieldStyle} type="url" value={editing.imageUrl || ""} onChange={(e) => updateField("imageUrl", e.target.value)} placeholder="https://â€¦" /></label>
+      {editing.imageUrl && <img src={editing.imageUrl} alt="Application image preview" style={{ display: "block", maxWidth: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 12, marginTop: 12 }} onError={(e) => { e.currentTarget.style.display = "none"; }} />}
+      <label style={labelStyle}>Requirements<textarea style={{ ...fieldStyle, minHeight: 110 }} value={editing.requirements || ""} onChange={(e) => updateField("requirements", e.target.value)} maxLength={5000} placeholder="Enter each requirement on a new line" /></label>
+      <label style={labelStyle}>Review team<select style={fieldStyle} value={editing.reviewerGroup || "hr"} onChange={(e) => updateField("reviewerGroup", e.target.value)}><option value="hr">Human Resources</option><option value="pr">PR & Marketing</option><option value="flight_ops">Flight Operations</option><option value="management">Management</option></select></label>
+      <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 10, padding: 12, border: "1px solid #e5e5e5", borderRadius: 10 }}><input type="checkbox" checked={Boolean(editing.published)} onChange={(e) => updateField("published", e.target.checked)} /> Publish on the public applications page <span style={{ color: "#777", fontWeight: 500 }}>(does not open it)</span></label>
+      <div style={{ marginTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}><h3 style={{ margin: 0 }}>Questions</h3><button type="button" style={{ ...buttonStyle, background: "#33363b" }} onClick={addQuestion}>+ Add question</button></div>
+      {editing.questions.map((q, index) => <section key={index} style={{ border: "1px solid #e5e5e5", borderRadius: 13, padding: 14, marginTop: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}><strong>Question {index + 1}</strong><div style={{ display: "flex", gap: 8 }}><button type="button" onClick={() => moveQuestion(index, -1)} disabled={index === 0} style={{ border: "1px solid #ddd", background: "#fff", borderRadius: 8, padding: "6px 9px", cursor: index === 0 ? "not-allowed" : "pointer" }}>â†‘ Move up</button><button type="button" onClick={() => moveQuestion(index, 1)} disabled={index === editing.questions.length - 1} style={{ border: "1px solid #ddd", background: "#fff", borderRadius: 8, padding: "6px 9px", cursor: index === editing.questions.length - 1 ? "not-allowed" : "pointer" }}>â†“ Move down</button><button type="button" onClick={() => removeQuestion(index)} style={{ border: 0, background: "transparent", color: "#a40000", cursor: "pointer", fontWeight: 800 }} disabled={editing.questions.length === 1}>Remove</button></div></div>
+        <label style={labelStyle}>Question prompt<textarea style={{ ...fieldStyle, minHeight: 72 }} value={q.prompt} onChange={(e) => updateQuestion(index, "prompt", e.target.value)} required maxLength={500} /></label>
+        <label style={labelStyle}>Help text (optional)<textarea style={{ ...fieldStyle, minHeight: 62 }} value={q.helpText || ""} onChange={(e) => updateQuestion(index, "helpText", e.target.value)} maxLength={1000} /></label>
+        <label style={{ ...labelStyle, display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={q.required !== false} onChange={(e) => updateQuestion(index, "required", e.target.checked)} /> Required question</label>
+        <label style={labelStyle}>Maximum answer length<input style={fieldStyle} type="number" min="100" max="4000" value={q.maxLength || 1500} onChange={(e) => updateQuestion(index, "maxLength", Number(e.target.value))} /></label>
+      </section>)}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 22 }}><button type="submit" style={buttonStyle} disabled={saving}>{saving ? "Savingâ€¦" : "Save application"}</button><button type="button" style={{ ...buttonStyle, background: "#555960" }} onClick={() => setEditing(null)}>Cancel</button></div>
+    </form>}
+    <p style={{ color: "#858a90", fontSize: 12, lineHeight: 1.6, marginTop: 24 }}>Image support currently uses an HTTPS image URL; direct file uploads can be added later when image storage is configured.</p>
+    <p style={{ marginTop: 20 }}><Link to="/staff/owner">â† Back to Owner Control Room</Link></p>
+  </div></main>;
+}
+
+function ApplicationAvailabilityControls() {
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  async function load() {
+    setLoading(true); setError("");
+    try {
+      const response = await fetch("/api/staff/application-availability", { credentials: "include" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "You do not have permission to manage application availability.");
+      setApplications(data.applications || []);
+    } catch (err) { setError(err.message || "Unable to load application controls."); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function toggle(app) {
+    setBusyId(app.id); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/staff/application-availability", { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: app.id, isOpen: !app.isOpen }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to update application status.");
+      setApplications(data.applications || []); setNotice(`${app.name} is now ${app.isOpen ? "closed" : "open"}.`);
+    } catch (err) { setError(err.message || "Unable to update application status."); }
+    finally { setBusyId(null); }
+  }
+
+  return <main className="public-page"><div className="public-card" style={{ maxWidth: 900, width: "100%" }}>
+    <span className="header-kicker">STAFF / BOD CONTROLS</span><h1>Application Availability</h1><p style={{ color: "#666", lineHeight: 1.6 }}>Only the CHRO can open or close application opportunities. Changes are saved immediately and enforced by the server.</p>
+    {error && <div role="alert" style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#fff1f1", color: "#a40000" }}>{error}</div>}
+    {notice && <div role="status" style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#eefbf2", color: "#176b38" }}>{notice}</div>}
+    {loading ? <p>Checking CHRO permissionsâ€¦</p> : <div style={{ display: "grid", gap: 12, marginTop: 20 }}>{applications.map((app) => <article key={app.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", border: "1px solid #e5e5e5", borderRadius: 14, padding: 16 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}>{app.imageUrl && <img src={app.imageUrl} alt="" style={{ width: 58, height: 46, objectFit: "cover", borderRadius: 8 }} />}<div><strong>{app.name}</strong><div style={{ color: "#777", fontSize: 12, marginTop: 4 }}>{app.department} Â· {app.isPublished ? "Published" : "Draft â€” not public"} Â· {app.isOpen ? "Currently open" : "Currently closed"}</div></div></div><button type="button" disabled={busyId === app.id || (!app.isPublished && !app.isOpen)} onClick={() => toggle(app)} style={{ border: 0, borderRadius: 10, padding: "11px 14px", fontWeight: 900, cursor: busyId === app.id ? "wait" : "pointer", background: app.isOpen ? "#34363b" : "#d71920", color: "white", opacity: busyId === app.id || (!app.isPublished && !app.isOpen) ? .55 : 1 }}>{busyId === app.id ? "Savingâ€¦" : !app.isPublished ? "Publish in Owner Control Room" : app.isOpen ? "Close application" : "Open application"}</button></article>)}</div>}
+    <p style={{ color: "#858a90", fontSize: 12, marginTop: 22 }}>If your role is not authorized, the Worker will reject the request even if this page is opened directly.</p>
+  </div></main>;
 }
 
 function OwnerOrganization() {
@@ -3414,6 +3573,7 @@ function ApplicationsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [error, setError] = useState("");
 
   const params = new URLSearchParams(location.search);
@@ -3456,6 +3616,7 @@ function ApplicationsPage() {
     setSelectedType(type);
     setAnswers({});
     setQuestionIndex(0);
+    setReviewing(false);
     setTransitioning(false);
   }
 
@@ -3465,6 +3626,7 @@ function ApplicationsPage() {
       setSelectedType(null);
       setAnswers({});
       setQuestionIndex(0);
+      setReviewing(false);
       setTransitioning(false);
     }, 180);
   }
@@ -3476,6 +3638,23 @@ function ApplicationsPage() {
       setQuestionIndex(nextIndex);
       setTransitioning(false);
     }, 180);
+  }
+
+  function openReview() {
+    const missingIndex = questions.findIndex((question) => question.required && !String(answers[question.id] || "").trim());
+    if (missingIndex >= 0) {
+      setError("Please answer this required question before reviewing your application.");
+      changeQuestion(missingIndex);
+      return;
+    }
+    setError("");
+    setTransitioning(true);
+    window.setTimeout(() => { setReviewing(true); setTransitioning(false); }, 180);
+  }
+
+  function editReviewedAnswer(index) {
+    setTransitioning(true);
+    window.setTimeout(() => { setQuestionIndex(index); setReviewing(false); setTransitioning(false); }, 180);
   }
 
   function updateAnswer(value) {
@@ -3534,7 +3713,9 @@ function ApplicationsPage() {
           ? "That application session expired. Please start again."
           : errorCode === "invalid_answers"
             ? "Your application could not be verified. Please start again."
-            : "";
+            : errorCode === "rate_limited"
+              ? "You can submit only one application every 24 hours. Please try again later."
+              : "";
 
   if (submitted) {
     return (
@@ -3567,7 +3748,7 @@ function ApplicationsPage() {
             <span className="header-kicker">JET2 | PTFS</span>
             <h1>Applications</h1>
           </div>
-          <div className="dashboard-badge"><span className="status-dot"></span>Applications open</div>
+
         </div>
 
         {(error || errorMessage) && (
@@ -3583,31 +3764,55 @@ function ApplicationsPage() {
         ) : !selectedType ? (
           <section className="application-card">
             <span className="section-label">JOIN THE TEAM</span>
-            <h2>Where would you like to apply?</h2>
-            <p className="application-lead">Choose an application below. Each department has its own questions and review team.</p>
+            <h2>Select an open application below to get started.</h2>
+            <p className="application-lead">Explore all application opportunities. Closed applications remain visible so you can see what opportunities are available.</p>
 
             <div className="application-type-grid">
               {applications.map((application) => (
-                <button
-                  key={application.typeKey}
-                  type="button"
-                  className="application-type-card"
-                  onClick={() => beginApplication(application)}
-                >
-                  <span className="application-type-icon">âœ¦</span>
-                  <span>
+                <article key={application.typeKey} className={"application-type-card" + (!application.isOpen ? " application-type-card-closed" : "")}>
+                  {application.imageUrl ? (
+                    <img className="application-type-image" src={application.imageUrl} alt="" loading="lazy" />
+                  ) : (
+                    <span className="application-type-icon">âœ¦</span>
+                  )}
+                  <div className="application-type-copy">
                     <strong>{application.name}</strong>
                     <small>{application.department}</small>
                     <em>{application.description}</em>
-                  </span>
-                  <b>â†’</b>
-                </button>
+                    {application.requirements && <p className="application-requirements"><b>Requirements:</b> {application.requirements}</p>}
+                    <span className={"application-status-pill" + (application.isOpen ? " is-open" : " is-closed")}>{application.isOpen ? "Open" : "Closed"}</span>
+                    <button type="button" className="application-start-button" disabled={!application.isOpen} onClick={() => beginApplication(application)}>{application.isOpen ? "Start Application â†’" : "Closed"}</button>
+                  </div>
+                </article>
               ))}
             </div>
 
             {!applications.length && (
-              <div className="application-empty">There are no applications open right now.</div>
+              <div className="application-empty">No applications have been published yet.</div>
             )}
+            <p className="application-rate-limit-note">Please note: you may submit only one application every 24 hours.</p>
+          </section>
+        ) : reviewing ? (
+          <section className="application-card">
+            <button type="button" className="application-back" onClick={() => { setReviewing(false); setError(""); }}>â† Back to questions</button>
+            <span className="section-label">FINAL CHECK</span>
+            <h2>Review your answers</h2>
+            <p className="application-lead">Take a moment to check your responses. You can edit any answer before continuing to Discord verification.</p>
+            <div style={{ display: "grid", gap: 12, marginTop: 20 }}>
+              {questions.map((question, index) => (
+                <article key={question.id} style={{ border: "1px solid #e5e6e8", borderRadius: 12, padding: 14, background: "#fff" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
+                    <strong>{index + 1}. {question.prompt}</strong>
+                    <button type="button" className="secondary-button" onClick={() => editReviewedAnswer(index)}>Edit</button>
+                  </div>
+                  <p style={{ margin: "10px 0 0", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: String(answers[question.id] || "").trim() ? "#333" : "#8a8a8a" }}>{String(answers[question.id] || "").trim() || "No answer provided (optional)."}</p>
+                </article>
+              ))}
+            </div>
+            <div className="application-navigation" style={{ marginTop: 22 }}>
+              <button type="button" className="secondary-button" onClick={() => { setReviewing(false); changeQuestion(Math.max(questions.length - 1, 0)); }}>Back</button>
+              <button type="button" className="primary-button" onClick={submitApplication} disabled={submitting}>{submitting ? "Preparing Discord verificationâ€¦" : "Continue to Discord verification â†’"}</button>
+            </div>
           </section>
         ) : (
           <section className="application-card">
@@ -3628,6 +3833,7 @@ function ApplicationsPage() {
                 onChange={(event) => updateAnswer(event.target.value)}
                 maxLength={currentQuestion?.maxLength || 1500}
                 autoFocus
+                aria-label={currentQuestion?.prompt || "Application answer"}
                 placeholder="Write your answer hereâ€¦"
               />
               <div className="application-answer-meta">
@@ -3639,8 +3845,8 @@ function ApplicationsPage() {
             <div className="application-navigation">
               <button type="button" className="secondary-button" onClick={() => questionIndex === 0 ? backToTypes() : changeQuestion(questionIndex - 1)}>Back</button>
               {isLastQuestion ? (
-                <button type="button" className="primary-button" onClick={submitApplication} disabled={!currentValid || submitting}>
-                  {submitting ? "Preparing Discord verificationâ€¦" : "Review & submit â†’"}
+                <button type="button" className="primary-button" onClick={openReview} disabled={!currentValid || submitting}>
+                  Review answers â†’
                 </button>
               ) : (
                 <button type="button" className="primary-button" onClick={() => currentValid && changeQuestion(questionIndex + 1)} disabled={!currentValid}>Next â†’</button>
@@ -3661,10 +3867,21 @@ function ApplicationsPage() {
         .application-card h2 { margin:7px 0 10px; font-size:clamp(27px,4vw,38px); letter-spacing:-.04em; }
         .application-lead { margin:0; color:#70757c; line-height:1.65; }
         .application-type-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:28px; }
-        .application-type-card { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px; text-align:left; border:1px solid #e1e3e6; background:#fff; border-radius:17px; padding:17px; cursor:pointer; transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease; }
-        .application-type-card:hover { transform:translateY(-2px); border-color:#d71920; box-shadow:0 10px 25px rgba(23,25,29,.08); }
-        .application-type-icon { width:40px; height:40px; display:grid; place-items:center; border-radius:12px; background:#fff0f1; color:#d71920; font-weight:900; }
+        .application-type-card { display:flex; flex-direction:column; align-items:stretch; gap:14px; text-align:left; border:1px solid #e1e3e6; background:#fff; border-radius:17px; padding:17px; min-width:0; transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease; }
+        .application-type-card:not(.application-type-card-closed):hover { transform:translateY(-2px); border-color:#d71920; box-shadow:0 10px 25px rgba(23,25,29,.08); }
+        .application-type-card-closed { background:#f7f7f8; border-color:#e4e5e7; }
+        .application-type-icon { width:40px; height:40px; display:grid; place-items:center; border-radius:12px; background:#fff0f1; color:#d71920; font-weight:900; flex-shrink:0; }
+        .application-type-image { width:100%; height:150px; object-fit:cover; border-radius:12px; background:#f2f2f2; }
+        .application-type-copy { display:flex; flex-direction:column; align-items:flex-start; gap:5px; }
         .application-type-card strong,.application-type-card small,.application-type-card em { display:block; }
+        .application-type-card-closed strong,.application-type-card-closed em { color:#7b7f85; }
+        .application-requirements { margin:8px 0 2px; color:#5f646b; font-size:12px; line-height:1.55; white-space:pre-line; }
+        .application-status-pill { display:inline-flex; align-items:center; border-radius:999px; padding:5px 9px; margin-top:8px; font-size:10px; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }
+        .application-status-pill.is-open { background:#e9f8ef; color:#177341; }
+        .application-status-pill.is-closed { background:#e5e6e8; color:#666b72; }
+        .application-start-button { margin-top:10px; border:0; border-radius:10px; background:#d71920; color:#fff; font:inherit; font-weight:900; padding:11px 14px; cursor:pointer; }
+        .application-start-button:disabled { background:#44474b; color:#c9cace; cursor:not-allowed; opacity:.72; }
+        .application-rate-limit-note { margin:18px 0 0; padding:13px 15px; border-radius:12px; background:#f7f7f8; color:#696e75; font-size:12px; line-height:1.6; }
         .application-type-card strong { color:#17191d; font-size:16px; }
         .application-type-card small { color:#d71920; font-weight:800; margin-top:3px; }
         .application-type-card em { color:#747980; font-size:12px; line-height:1.5; font-style:normal; margin-top:6px; }
@@ -3810,6 +4027,11 @@ function StaffPortal() {
           element={
             <StaffTraining />
           }
+        />
+
+        <Route
+          path="application-controls"
+          element={<ApplicationAvailabilityControls />}
         />
       </Routes>
     </StaffLayout>
