@@ -2830,7 +2830,7 @@ function applicationPublicId() {
 function truncateDiscordText(value, max = 1024) {
   const text = String(value ?? "");
   if (text.length <= max) return text;
-  return `${text.slice(0, max - 1)}Ã¢â‚¬Â¦`;
+  return `${text.slice(0, max - 1)}â€¦`;
 }
 
 async function getApplicationType(env, typeKey) {
@@ -3095,15 +3095,15 @@ async function handleApplicationCallback(env, request) {
   const forumResponse = await discordBotRequestWithJson(env, `/channels/${forumChannelId}/threads`, {
     method: "POST",
     body: JSON.stringify({
-      name: truncateDiscordText(`${application.name} Ã¢â‚¬â€ ${discordUser.username}`, 100),
+      name: truncateDiscordText(`${application.name} â€” ${discordUser.username}`, 100),
       message: {
         content: initialContent,
         embeds: [{
-          title: `Jet2 | PTFS Ã¢â‚¬â€ ${application.name}`,
+          title: `Jet2 | PTFS â€” ${application.name}`,
           description: application.description,
           color: 0xd71920,
           fields,
-          footer: { text: `${application.public_id} Ã¢â‚¬Â¢ Verified Discord member` },
+          footer: { text: `${application.public_id} â€¢ Verified Discord member` },
           timestamp: new Date().toISOString()
         }],
         
@@ -3425,7 +3425,7 @@ async function handleApplicationInteraction(env, request) {
   ).bind(decision, reviewerId, reviewerUsername, publicId).run();
 
   const applicantMessage = decision === "passed"
-    ? `Ã°Å¸Å½â€° **Your ${application.name} application has been accepted!**\\n\\nYour application **${publicId}** has been approved by **${reviewerUsername}**. A member of the team will provide any next steps in Discord.`
+    ? `ðŸŽ‰ **Your ${application.name} application has been accepted!**\\n\\nYour application **${publicId}** has been approved by **${reviewerUsername}**. A member of the team will provide any next steps in Discord.`
     : `Thank you for applying to **Jet2 | PTFS**.\\n\\nYour **${application.name}** application (${publicId}) was not successful this time. You are welcome to apply again when the relevant application opens again.`;
 
   if (application.discord_user_id) {
@@ -3452,7 +3452,7 @@ async function handleApplicationInteraction(env, request) {
       body: JSON.stringify({
         embeds: [{
           title: `Application ${decision === "passed" ? "Passed" : "Failed"}`,
-          description: `${application.name} Ã¢â‚¬â€ ${publicId}`,
+          description: `${application.name} â€” ${publicId}`,
           color: decision === "passed" ? 0x22c55e : 0xd71920,
           fields: [
             { name: "Applicant", value: `<@${application.discord_user_id}>`, inline: true },
@@ -3804,7 +3804,7 @@ async function handleMyJet2Login(env, request) {
 
   if (username && !MYJET2_USERNAME_PATTERN.test(username)) {
     return new Response(
-      "Invalid myJet2 username. Use 3Ã¢â‚¬â€œ20 letters, numbers, spaces, hyphens, or underscores.",
+      "Invalid myJet2 username. Use 3â€“20 letters, numbers, spaces, hyphens, or underscores.",
       { status: 400 }
     );
   }
@@ -3894,10 +3894,10 @@ async function handleMyJet2Callback(env, request) {
     !storedState ||
     returnedState !== storedState
   ) {
-    return new Response(
-      "Invalid myJet2 OAuth state.",
-      { status: 400 }
-    );
+    return redirect("/myjet2/login?error=oauth", [
+      ["Set-Cookie", clearCookie(MYJET2_OAUTH_STATE_COOKIE)],
+      ["Set-Cookie", clearCookie(MYJET2_SIGNUP_USERNAME_COOKIE)]
+    ]);
   }
 
   const tokenResponse = await fetch(
@@ -3919,10 +3919,10 @@ async function handleMyJet2Callback(env, request) {
   );
 
   if (!tokenResponse.ok) {
-    return new Response(
-      "Discord authentication failed.",
-      { status: 401 }
-    );
+    return redirect("/myjet2/login?error=oauth", [
+      ["Set-Cookie", clearCookie(MYJET2_OAUTH_STATE_COOKIE)],
+      ["Set-Cookie", clearCookie(MYJET2_SIGNUP_USERNAME_COOKIE)]
+    ]);
   }
 
   const tokenData = await tokenResponse.json();
@@ -3935,10 +3935,10 @@ async function handleMyJet2Callback(env, request) {
   );
 
   if (!member) {
-    return new Response(
-      "You must be a member of the Jet2 | PTFS Discord server to use myJet2.",
-      { status: 403 }
-    );
+    return redirect("/myjet2/login?error=not_a_member", [
+      ["Set-Cookie", clearCookie(MYJET2_OAUTH_STATE_COOKIE)],
+      ["Set-Cookie", clearCookie(MYJET2_SIGNUP_USERNAME_COOKIE)]
+    ]);
   }
 
   await env.DB.prepare(
