@@ -2830,16 +2830,17 @@ function applicationPublicId() {
 function truncateDiscordText(value, max = 1024) {
   const text = String(value ?? "");
   if (text.length <= max) return text;
-  return `${text.slice(0, max - 1)}â€¦`;
+  return `${text.slice(0, max - 1)}Ã¢â‚¬Â¦`;
 }
 
 async function getApplicationType(env, typeKey) {
   return env.DB.prepare(
     `
-      SELECT id, type_key, name, description, department, reviewer_group, active
+      SELECT id, type_key, name, description, department, reviewer_group, active, published
       FROM application_types
       WHERE type_key = ?
         AND active = 1
+        AND published = 1
       LIMIT 1
     `
   ).bind(typeKey).first();
@@ -2869,6 +2870,10 @@ async function handleApplicationTypes(env) {
         t.description,
         t.department,
         t.reviewer_group,
+        t.active,
+        t.published,
+        t.image_url,
+        t.requirements,
         q.id AS question_id,
         q.question_order,
         q.prompt,
@@ -2879,7 +2884,7 @@ async function handleApplicationTypes(env) {
       LEFT JOIN application_questions q
         ON q.application_type_id = t.id
        AND q.active = 1
-      WHERE t.active = 1
+      WHERE t.published = 1
       ORDER BY t.id ASC, q.question_order ASC
     `
   ).all();
@@ -2893,6 +2898,9 @@ async function handleApplicationTypes(env) {
         name: row.name,
         description: row.description,
         department: row.department,
+        isOpen: Boolean(row.active),
+        imageUrl: row.image_url || "",
+        requirements: row.requirements || "",
         questions: []
       });
     }
@@ -3024,6 +3032,22 @@ async function handleApplicationCallback(env, request) {
     return redirect("/apply?error=not_a_member", clearApplicationCookies);
   }
 
+  const recentApplication = await env.DB.prepare(
+    `
+      SELECT public_id, submitted_at
+      FROM applications
+      WHERE discord_user_id = ?
+        AND submitted_at IS NOT NULL
+        AND submitted_at >= datetime('now', '-24 hours')
+      ORDER BY submitted_at DESC
+      LIMIT 1
+    `
+  ).bind(discordUser.id).first();
+
+  if (recentApplication && recentApplication.public_id !== application.public_id) {
+    return redirect("/apply?error=rate_limited", clearApplicationCookies);
+  }
+
   const duplicate = await env.DB.prepare(
     `
       SELECT public_id
@@ -3071,15 +3095,15 @@ async function handleApplicationCallback(env, request) {
   const forumResponse = await discordBotRequestWithJson(env, `/channels/${forumChannelId}/threads`, {
     method: "POST",
     body: JSON.stringify({
-      name: truncateDiscordText(`${application.name} â€” ${discordUser.username}`, 100),
+      name: truncateDiscordText(`${application.name} Ã¢â‚¬â€ ${discordUser.username}`, 100),
       message: {
         content: initialContent,
         embeds: [{
-          title: `Jet2 | PTFS â€” ${application.name}`,
+          title: `Jet2 | PTFS Ã¢â‚¬â€ ${application.name}`,
           description: application.description,
           color: 0xd71920,
           fields,
-          footer: { text: `${application.public_id} â€¢ Verified Discord member` },
+          footer: { text: `${application.public_id} Ã¢â‚¬Â¢ Verified Discord member` },
           timestamp: new Date().toISOString()
         }],
         
@@ -3165,6 +3189,182 @@ async function verifyDiscordInteraction(request, env, rawBody) {
   }
 }
 
+async function readApplicationAdminList(env) {
+  const result = await env.DB.prepare(
+    `
+      SELECT id, type_key, name, description, department, reviewer_group,
+             active, published, image_url, requirements
+      FROM application_types
+      ORDER BY id ASC
+    `
+  ).all();
+  const types = result.results || [];
+  const applications = [];
+  for (const type of types) {
+    const questions = await getApplicationQuestionsIncludingInactive(env, type.id);
+    applications.push({
+      id: type.id,
+      typeKey: type.type_key,
+      name: type.name,
+      description: type.description,
+      department: type.department,
+      reviewerGroup: type.reviewer_group,
+      isOpen: Boolean(type.active),
+      isPublished: Boolean(type.published),
+      published: Boolean(type.published),
+      imageUrl: type.image_url || "",
+      requirements: type.requirements || "",
+      questions: questions.map((q) => ({
+        id: q.id,
+        prompt: q.prompt,
+        helpText: q.help_text,
+        required: Boolean(q.required),
+        maxLength: Number(q.max_length || 1500)
+      }))
+    });
+  }
+  return applications;
+}
+
+async function getApplicationQuestionsIncludingInactive(env, typeId) {
+  const result = await env.DB.prepare(
+    `SELECT id, question_order, prompt, help_text, required, max_length
+     FROM application_questions WHERE application_type_id = ?
+     ORDER BY question_order ASC`
+  ).bind(typeId).all();
+  return result.results || [];
+}
+
+function normalizeApplicationDraft(body) {
+  const name = String(body?.name || "").trim().slice(0, 100);
+  const description = String(body?.description || "").trim().slice(0, 2000);
+  const department = String(body?.department || "").trim().slice(0, 100);
+  const reviewerGroup = String(body?.reviewerGroup || "hr").trim();
+  const imageUrl = String(body?.imageUrl || "").trim().slice(0, 1000);
+  const requirements = String(body?.requirements || "").trim().slice(0, 5000);
+  const published = body?.published === true;
+  const questions = Array.isArray(body?.questions) ? body.questions.slice(0, 40).map((q) => ({
+    prompt: String(q?.prompt || "").trim().slice(0, 500),
+    helpText: String(q?.helpText || "").trim().slice(0, 1000),
+    required: q?.required !== false,
+    maxLength: Math.min(4000, Math.max(100, Number(q?.maxLength) || 1500))
+  })).filter((q) => q.prompt) : [];
+  if (!name || !department) return { error: "Application name and department are required." };
+  if (imageUrl && !/^https:\/\//i.test(imageUrl)) return { error: "The application image must use an HTTPS image URL." };
+  if (!questions.length) return { error: "Add at least one question before saving." };
+  if (!Object.hasOwn(APPLICATION_REVIEW_ROLES, reviewerGroup)) return { error: "Choose a valid review department." };
+  return { name, description, department, reviewerGroup, imageUrl, requirements, published, questions };
+}
+
+async function handleOwnerApplications(env, request) {
+  const owner = await requireOwnerSession(env, request);
+  if (!owner) return json({ error: "Owner Control Room authorization is required." }, 401);
+
+  if (request.method === "GET") {
+    return json({ applications: await readApplicationAdminList(env) });
+  }
+
+  if (request.method === "DELETE") {
+    const body = await request.json().catch(() => null);
+    const id = Number(body?.id);
+    if (!Number.isInteger(id) || id < 1) return json({ error: "A valid application ID is required." }, 400);
+    const existing = await env.DB.prepare("SELECT id, name FROM application_types WHERE id = ? LIMIT 1").bind(id).first();
+    if (!existing) return json({ error: "Application not found." }, 404);
+    const submitted = await env.DB.prepare("SELECT id FROM applications WHERE application_type_id = ? LIMIT 1").bind(id).first();
+    if (submitted) return json({ error: "This application has submissions and cannot be deleted. Close it and unpublish it instead." }, 409);
+    await env.DB.prepare("DELETE FROM application_questions WHERE application_type_id = ?").bind(id).run();
+    await env.DB.prepare("DELETE FROM application_types WHERE id = ?").bind(id).run();
+    await env.DB.prepare(`INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details_json) VALUES (?, ?, ?, ?, ?)`)
+      .bind(owner.user.id, "application.delete", "application_type", String(id), JSON.stringify({ name: existing.name })).run().catch(() => {});
+    return json({ ok: true, applications: await readApplicationAdminList(env) });
+  }
+
+  if (request.method === "POST" || request.method === "PUT") {
+    const body = await request.json().catch(() => null);
+    const draft = normalizeApplicationDraft(body);
+    if (draft.error) return json({ error: draft.error }, 400);
+
+    let id = Number(body?.id) || 0;
+    let typeKey = String(body?.typeKey || "").trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+    if (request.method === "POST") {
+      if (!typeKey) typeKey = draft.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+      if (!typeKey) return json({ error: "Could not create an application key from that name." }, 400);
+      const existing = await env.DB.prepare("SELECT id FROM application_types WHERE type_key = ? LIMIT 1").bind(typeKey).first();
+      if (existing) return json({ error: "That application key already exists. Edit the existing application instead." }, 409);
+      const inserted = await env.DB.prepare(
+        `INSERT INTO application_types (type_key, name, description, department, reviewer_group, active, published, image_url, requirements)
+         VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`
+      ).bind(typeKey, draft.name, draft.description, draft.department, draft.reviewerGroup, draft.published ? 1 : 0, draft.imageUrl, draft.requirements).run();
+      id = Number(inserted.meta?.last_row_id || 0);
+    } else {
+      if (!id) return json({ error: "An application ID is required to save changes." }, 400);
+      const current = await env.DB.prepare("SELECT id FROM application_types WHERE id = ? LIMIT 1").bind(id).first();
+      if (!current) return json({ error: "Application not found." }, 404);
+      await env.DB.prepare(
+        `UPDATE application_types SET name = ?, description = ?, department = ?, reviewer_group = ?, image_url = ?, requirements = ?, published = ?, active = CASE WHEN ? = 1 THEN active ELSE 0 END, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+      ).bind(draft.name, draft.description, draft.department, draft.reviewerGroup, draft.imageUrl, draft.requirements, draft.published ? 1 : 0, draft.published ? 1 : 0, id).run();
+      await env.DB.prepare("DELETE FROM application_questions WHERE application_type_id = ?").bind(id).run();
+    }
+
+    for (let i = 0; i < draft.questions.length; i++) {
+      const q = draft.questions[i];
+      await env.DB.prepare(
+        `INSERT INTO application_questions (application_type_id, question_order, prompt, help_text, required, max_length, active)
+         VALUES (?, ?, ?, ?, ?, ?, 1)`
+      ).bind(id, i + 1, q.prompt, q.helpText, q.required ? 1 : 0, q.maxLength).run();
+    }
+
+    await env.DB.prepare(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details_json)
+       VALUES (?, ?, ?, ?, ?)`
+    ).bind(owner.user.id, request.method === "POST" ? "application.create" : "application.update", "application_type", String(id), JSON.stringify({ name: draft.name, typeKey })).run().catch(() => {});
+
+    return json({ ok: true, applications: await readApplicationAdminList(env) });
+  }
+
+  return json({ error: "Method not allowed." }, 405);
+}
+
+async function handleApplicationAvailability(env, request) {
+  const session = await getSession(env, request);
+  if (!session) return json({ error: "Please sign in through Discord." }, 401);
+  const user = await env.DB.prepare("SELECT id, discord_user_id FROM users WHERE id = ? LIMIT 1").bind(session.user_id).first();
+  if (!user) return json({ error: "Your staff account could not be verified." }, 401);
+  const member = await getGuildMember(env, user.discord_user_id);
+  if (!member) return json({ error: "You must be a current Jet2 | PTFS Discord member." }, 403);
+  const roleIds = new Set(member.roles || []);
+  const canManage = roleIds.has(ROLES.chro) || isOwnerIdentity(env, user);
+  if (!canManage) return json({ error: "Only the CHRO can open or close applications." }, 403);
+
+  if (request.method === "GET") {
+    const result = await env.DB.prepare(
+      "SELECT id, type_key, name, department, active, published, image_url FROM application_types ORDER BY id ASC"
+    ).all();
+    return json({ applications: (result.results || []).map((item) => ({
+      id: item.id, typeKey: item.type_key, name: item.name, department: item.department,
+      isOpen: Boolean(item.active), isPublished: Boolean(item.published), imageUrl: item.image_url || ""
+    })) });
+  }
+
+  if (request.method === "PUT") {
+    const body = await request.json().catch(() => null);
+    const id = Number(body?.id);
+    if (!Number.isInteger(id) || id < 1 || typeof body?.isOpen !== "boolean") {
+      return json({ error: "Application ID and open/closed status are required." }, 400);
+    }
+    const type = await env.DB.prepare("SELECT id, name, published FROM application_types WHERE id = ? LIMIT 1").bind(id).first();
+    if (!type) return json({ error: "Application not found." }, 404);
+    if (body.isOpen && !type.published) return json({ error: "Publish this application in the Owner Control Room before opening it." }, 409);
+    await env.DB.prepare("UPDATE application_types SET active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(body.isOpen ? 1 : 0, id).run();
+    await env.DB.prepare(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details_json)
+       VALUES (?, ?, ?, ?, ?)`
+    ).bind(user.id, body.isOpen ? "application.open" : "application.close", "application_type", String(id), JSON.stringify({ name: type.name })).run().catch(() => {});
+    return json({ ok: true, applications: (await env.DB.prepare("SELECT id, type_key, name, department, active, published, image_url FROM application_types ORDER BY id ASC").all()).results.map((item) => ({ id: item.id, typeKey: item.type_key, name: item.name, department: item.department, isOpen: Boolean(item.active), isPublished: Boolean(item.published), imageUrl: item.image_url || "" })) });
+  }
+  return json({ error: "Method not allowed." }, 405);
+}
+
 async function handleApplicationInteraction(env, request) {
   const rawBody = await request.text();
   if (!(await verifyDiscordInteraction(request, env, rawBody))) {
@@ -3225,7 +3425,7 @@ async function handleApplicationInteraction(env, request) {
   ).bind(decision, reviewerId, reviewerUsername, publicId).run();
 
   const applicantMessage = decision === "passed"
-    ? `ðŸŽ‰ **Your ${application.name} application has been accepted!**\\n\\nYour application **${publicId}** has been approved by **${reviewerUsername}**. A member of the team will provide any next steps in Discord.`
+    ? `Ã°Å¸Å½â€° **Your ${application.name} application has been accepted!**\\n\\nYour application **${publicId}** has been approved by **${reviewerUsername}**. A member of the team will provide any next steps in Discord.`
     : `Thank you for applying to **Jet2 | PTFS**.\\n\\nYour **${application.name}** application (${publicId}) was not successful this time. You are welcome to apply again when the relevant application opens again.`;
 
   if (application.discord_user_id) {
@@ -3252,7 +3452,7 @@ async function handleApplicationInteraction(env, request) {
       body: JSON.stringify({
         embeds: [{
           title: `Application ${decision === "passed" ? "Passed" : "Failed"}`,
-          description: `${application.name} â€” ${publicId}`,
+          description: `${application.name} Ã¢â‚¬â€ ${publicId}`,
           color: decision === "passed" ? 0x22c55e : 0xd71920,
           fields: [
             { name: "Applicant", value: `<@${application.discord_user_id}>`, inline: true },
@@ -3604,7 +3804,7 @@ async function handleMyJet2Login(env, request) {
 
   if (username && !MYJET2_USERNAME_PATTERN.test(username)) {
     return new Response(
-      "Invalid myJet2 username. Use 3â€“20 letters, numbers, spaces, hyphens, or underscores.",
+      "Invalid myJet2 username. Use 3Ã¢â‚¬â€œ20 letters, numbers, spaces, hyphens, or underscores.",
       { status: 400 }
     );
   }
@@ -4877,6 +5077,20 @@ export default {
           env,
           request
         );
+      }
+
+      if (
+        ["GET", "POST", "PUT", "DELETE"].includes(request.method) &&
+        url.pathname === "/api/owner/applications"
+      ) {
+        return await handleOwnerApplications(env, request);
+      }
+
+      if (
+        ["GET", "PUT"].includes(request.method) &&
+        url.pathname === "/api/staff/application-availability"
+      ) {
+        return await handleApplicationAvailability(env, request);
       }
 
       if (
