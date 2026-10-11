@@ -252,7 +252,7 @@ function SidebarSection({
               : "sidebar-chevron"
           }
         >
-          â€º
+          &gt;
         </span>
       </button>
 
@@ -335,7 +335,24 @@ function StaffLayout({
     });
   }
 
-  if (rank?.title === "CHRO" || rank?.name === "CHRO" || positions.some((item) => item?.position === "CHRO" || item?.rank === "CHRO")) {
+  const applicationControlRanks = new Set([
+    "BOD", "CDO", "CTO", "CHRO", "CAO", "CMO", "COM", "CXO",
+    "Board of Directors", "Chief Data Officer", "Chief Technology Officer",
+    "Chief Human Resources Officer", "Chief Administrative Officer",
+    "Chief Management Officer", "Chief Of Marketing", "Chief Experience Officer"
+  ]);
+  const canManageApplications =
+    (Array.isArray(permissions) && permissions.includes("admin.owner")) ||
+    applicationControlRanks.has(rank?.title) ||
+    applicationControlRanks.has(rank?.name) ||
+    positions.some((item) =>
+      applicationControlRanks.has(item?.position) ||
+      applicationControlRanks.has(item?.rank) ||
+      applicationControlRanks.has(item?.title) ||
+      applicationControlRanks.has(item?.name)
+    );
+
+  if (canManageApplications) {
     navigation.push({ label: "Application Controls", path: "/staff/application-controls" });
   }
 
@@ -427,7 +444,7 @@ function StaffLayout({
                     0 && (
                     <span className="staff-user-department">
                       {departments.join(
-                        " Â· "
+                        "  |  "
                       )}
                     </span>
                   )}
@@ -453,7 +470,7 @@ function StaffLayout({
                             className="module-item"
                           >
                             <span className="module-check">
-                              âœ“
+                              &#10003;
                             </span>
 
                             <span>
@@ -563,7 +580,7 @@ function StaffLayout({
                 }
               >
                 <span>
-                  â†ª
+                  &#8618;
                 </span>
 
                 Log Out
@@ -696,7 +713,7 @@ function StaffDashboard({
           className="dashboard-card"
         >
           <span className="card-icon">
-            âœˆ
+            &#9992;
           </span>
 
           <div>
@@ -711,7 +728,7 @@ function StaffDashboard({
           </div>
 
           <span className="card-arrow">
-            â†’
+            -&gt;
           </span>
         </Link>
 
@@ -720,7 +737,7 @@ function StaffDashboard({
           className="dashboard-card"
         >
           <span className="card-icon">
-            â—‰
+            &#9673;
           </span>
 
           <div>
@@ -735,7 +752,7 @@ function StaffDashboard({
           </div>
 
           <span className="card-arrow">
-            â†’
+            -&gt;
           </span>
         </Link>
 
@@ -744,7 +761,7 @@ function StaffDashboard({
           className="dashboard-card"
         >
           <span className="card-icon">
-            âœ“
+            &#10003;
           </span>
 
           <div>
@@ -759,13 +776,13 @@ function StaffDashboard({
           </div>
 
           <span className="card-arrow">
-            â†’
+            -&gt;
           </span>
         </Link>
 
         <div className="dashboard-card disabled-card">
           <span className="card-icon">
-            â–£
+            &#9635;
           </span>
 
           <div>
@@ -829,7 +846,7 @@ function StaffDashboard({
               {departmentNames.length >
               0
                 ? departmentNames.join(
-                    " Â· "
+                    "  |  "
                   )
                 : "No department assignment"}
             </strong>
@@ -1053,21 +1070,21 @@ function OwnerControlRoom({ ownerData, onLogout }) {
 
         <div className="dashboard-grid" style={{ marginTop: 18 }}>
           <Link to="/staff/owner/organization" className="dashboard-card">
-            <span className="card-icon">ðŸ¢</span>
+            <span className="card-icon">&#127970;</span>
             <div><h3>Organization</h3><p>Manage Leadership, Board of Directors and future Directors records.</p></div>
-            <span className="card-arrow">â†’</span>
+            <span className="card-arrow">-&gt;</span>
           </Link>
           <Link to="/staff/owner/applications" className="dashboard-card">
-            <span className="card-icon">ðŸ“</span>
+            <span className="card-icon">&#128221;</span>
             <div><h3>Application Builder</h3><p>Create and edit application forms, images, requirements, and questions.</p></div>
-            <span className="card-arrow">â†’</span>
+            <span className="card-arrow">-&gt;</span>
           </Link>
           <div className="dashboard-card">
-            <span className="card-icon">ðŸ”</span>
+            <span className="card-icon">&#128272;</span>
             <div><h3>Owner Security</h3><p>Privileged access is protected by your password and authenticator code.</p></div>
           </div>
           <div className="dashboard-card">
-            <span className="card-icon">ðŸ“‹</span>
+            <span className="card-icon">&#128203;</span>
             <div><h3>Audit & Security</h3><p>Administrative audit tools are reserved for the next control-room phase.</p></div>
             <span className="coming-soon">COMING SOON</span>
           </div>
@@ -1214,7 +1231,7 @@ function OwnerLogin({ onAuthenticated }) {
           )}
 
           <button type="submit" disabled={busy} style={primaryButtonStyle}>
-            {busy ? "Verifyingâ€¦" : "Enter Administration"}
+            {busy ? "Verifying..." : "Enter Administration"}
           </button>
         </form>
       </div>
@@ -1390,14 +1407,14 @@ function OrganizationPersonForm({ initialPerson, onCancel, onSaved }) {
         </label>
 
         <label style={formLabelStyle}>
-          Custom photo URL <span style={{ fontWeight: 500, color: "#777" }}>(optional â€” Discord avatar is used by default)</span>
-          <input type="url" value={form.customPhotoUrl} onChange={(event) => update("customPhotoUrl", event.target.value)} style={formInputStyle} placeholder="https://â€¦" />
+          Custom photo URL <span style={{ fontWeight: 500, color: "#777" }}>(optional  -  Discord avatar is used by default)</span>
+          <input type="url" value={form.customPhotoUrl} onChange={(event) => update("customPhotoUrl", event.target.value)} style={formInputStyle} placeholder="https://..." />
         </label>
 
         {error && <div style={errorStyle}>{error}</div>}
 
         <button type="submit" disabled={busy} style={{ ...primaryButtonStyle, width: "fit-content" }}>
-          {busy ? "Savingâ€¦" : form.id ? "Save Changes" : "Add Person"}
+          {busy ? "Saving..." : form.id ? "Save Changes" : "Add Person"}
         </button>
       </form>
     </div>
@@ -1456,6 +1473,25 @@ function OwnerApplicationManager() {
 
   useEffect(() => { loadApplications(); }, []);
 
+  async function toggleApplicationAvailability(app) {
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/staff/application-availability", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: app.id, isOpen: !app.isOpen })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to update application availability.");
+      setApplications(data.applications || []);
+      setNotice(`${app.name} is now ${app.isOpen ? "closed" : "open"}.`);
+    } catch (err) {
+      setError(err.message || "Unable to update application availability.");
+    }
+  }
+
   function newDraft() {
     setNotice(""); setError("");
     setEditing({ name: "", description: "", department: "", reviewerGroup: "hr", imageUrl: "", requirements: "", published: false, questions: [{ prompt: "", helpText: "", required: true, maxLength: 1500 }] });
@@ -1488,7 +1524,7 @@ function OwnerApplicationManager() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Unable to save this application.");
-      setApplications(data.applications || []); setEditing(null); setNotice("Application saved. Publishing controls whether it appears publicly; the CHRO separately controls whether it is open.");
+      setApplications(data.applications || []); setEditing(null); setNotice("Application saved. Publishing controls whether it appears publicly; authorized staff control whether it is open.");
     } catch (err) { setError(err.message || "Unable to save this application."); }
     finally { setSaving(false); }
   }
@@ -1499,16 +1535,17 @@ function OwnerApplicationManager() {
 
   return <main className="public-page"><div className="public-card" style={{ maxWidth: 1000, width: "100%" }}>
     <span className="header-kicker">OWNER CONTROL ROOM / RECRUITMENT</span><h1>Application Builder</h1>
-    <p style={{ color: "#666", lineHeight: 1.6 }}>Create and maintain application forms. Saving a new application leaves it closed; the CHRO controls when it becomes available.</p>
+    <p style={{ color: "#666", lineHeight: 1.6 }}>Create and maintain application forms. Saving a new application leaves it closed. The Owner, CHRO, and authorized Board of Directors members can open or close published applications.</p>
     {error && <div role="alert" style={{ marginTop: 16, padding: 12, borderRadius: 10, background: "#fff1f1", color: "#a40000" }}>{error}</div>}
     {notice && <div role="status" style={{ marginTop: 16, padding: 12, borderRadius: 10, background: "#eefbf2", color: "#176b38" }}>{notice}</div>}
     {!editing && <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 24 }}><h2 style={{ margin: 0 }}>Saved applications</h2><button type="button" style={buttonStyle} onClick={newDraft}>+ Create application</button></div>}
-    {loading ? <p>Loading saved applicationsâ€¦</p> : !editing ? <div style={{ display: "grid", gap: 12, marginTop: 18 }}>{applications.map((app) => <article key={app.id} style={{ border: "1px solid #e5e5e5", borderRadius: 14, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>{app.imageUrl && <img src={app.imageUrl} alt="" style={{ width: 62, height: 48, objectFit: "cover", borderRadius: 8 }} />}<div><strong>{app.name}</strong><div style={{ color: "#777", fontSize: 12, marginTop: 4 }}>{app.department} Â· {app.questions.length} questions Â· {app.isPublished ? "Published" : "Draft"} Â· {app.isOpen ? "Open" : "Closed"}</div></div></div>
+    {loading ? <p>Loading saved applications...</p> : !editing ? <div style={{ display: "grid", gap: 12, marginTop: 18 }}>{applications.map((app) => <article key={app.id} style={{ border: "1px solid #e5e5e5", borderRadius: 14, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>{app.imageUrl && <img src={app.imageUrl} alt="" style={{ width: 62, height: 48, objectFit: "cover", borderRadius: 8 }} />}<div><strong>{app.name}</strong><div style={{ color: "#777", fontSize: 12, marginTop: 4 }}>{app.department}  |  {app.questions.length} questions  |  {app.isPublished ? "Published" : "Draft"}  |  {app.isOpen ? "Open" : "Closed"}</div></div></div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" style={{ ...buttonStyle, background: app.isOpen ? "#303238" : "#177245" }} disabled={!app.isPublished && !app.isOpen} onClick={() => toggleApplicationAvailability(app)}>{app.isOpen ? "Close application" : app.isPublished ? "Open application" : "Publish before opening"}</button>
         <button type="button" style={{ ...buttonStyle, background: "#303238" }} onClick={() => { setEditing({ ...app, published: Boolean(app.isPublished) }); setError(""); setNotice(""); }}>Edit form</button>
         <button type="button" style={{ ...buttonStyle, background: "#a40000" }} onClick={async () => {
-          if (!window.confirm(`Delete â€œ${app.name}â€? This is only allowed if nobody has submitted an application for it.`)) return;
+          if (!window.confirm(`Delete "${app.name}"? This is only allowed if nobody has submitted an application for it.`)) return;
           setError(""); setNotice("");
           try {
             const response = await fetch("/api/owner/applications", { method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: app.id }) });
@@ -1523,23 +1560,23 @@ function OwnerApplicationManager() {
       <label style={labelStyle}>Application name<input style={fieldStyle} value={editing.name} onChange={(e) => updateField("name", e.target.value)} required maxLength={100} /></label>
       <label style={labelStyle}>Department<input style={fieldStyle} value={editing.department} onChange={(e) => updateField("department", e.target.value)} required maxLength={100} placeholder="Human Resources" /></label>
       <label style={labelStyle}>Description<textarea style={{ ...fieldStyle, minHeight: 82 }} value={editing.description} onChange={(e) => updateField("description", e.target.value)} maxLength={2000} /></label>
-      <label style={labelStyle}>Application image URL (HTTPS)<input style={fieldStyle} type="url" value={editing.imageUrl || ""} onChange={(e) => updateField("imageUrl", e.target.value)} placeholder="https://â€¦" /></label>
+      <label style={labelStyle}>Application image URL (HTTPS)<input style={fieldStyle} type="url" value={editing.imageUrl || ""} onChange={(e) => updateField("imageUrl", e.target.value)} placeholder="https://..." /></label>
       {editing.imageUrl && <img src={editing.imageUrl} alt="Application image preview" style={{ display: "block", maxWidth: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 12, marginTop: 12 }} onError={(e) => { e.currentTarget.style.display = "none"; }} />}
       <label style={labelStyle}>Requirements<textarea style={{ ...fieldStyle, minHeight: 110 }} value={editing.requirements || ""} onChange={(e) => updateField("requirements", e.target.value)} maxLength={5000} placeholder="Enter each requirement on a new line" /></label>
       <label style={labelStyle}>Review team<select style={fieldStyle} value={editing.reviewerGroup || "hr"} onChange={(e) => updateField("reviewerGroup", e.target.value)}><option value="hr">Human Resources</option><option value="pr">PR & Marketing</option><option value="flight_ops">Flight Operations</option><option value="management">Management</option></select></label>
       <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 10, padding: 12, border: "1px solid #e5e5e5", borderRadius: 10 }}><input type="checkbox" checked={Boolean(editing.published)} onChange={(e) => updateField("published", e.target.checked)} /> Publish on the public applications page <span style={{ color: "#777", fontWeight: 500 }}>(does not open it)</span></label>
       <div style={{ marginTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}><h3 style={{ margin: 0 }}>Questions</h3><button type="button" style={{ ...buttonStyle, background: "#33363b" }} onClick={addQuestion}>+ Add question</button></div>
       {editing.questions.map((q, index) => <section key={index} style={{ border: "1px solid #e5e5e5", borderRadius: 13, padding: 14, marginTop: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}><strong>Question {index + 1}</strong><div style={{ display: "flex", gap: 8 }}><button type="button" onClick={() => moveQuestion(index, -1)} disabled={index === 0} style={{ border: "1px solid #ddd", background: "#fff", borderRadius: 8, padding: "6px 9px", cursor: index === 0 ? "not-allowed" : "pointer" }}>â†‘ Move up</button><button type="button" onClick={() => moveQuestion(index, 1)} disabled={index === editing.questions.length - 1} style={{ border: "1px solid #ddd", background: "#fff", borderRadius: 8, padding: "6px 9px", cursor: index === editing.questions.length - 1 ? "not-allowed" : "pointer" }}>â†“ Move down</button><button type="button" onClick={() => removeQuestion(index)} style={{ border: 0, background: "transparent", color: "#a40000", cursor: "pointer", fontWeight: 800 }} disabled={editing.questions.length === 1}>Remove</button></div></div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}><strong>Question {index + 1}</strong><div style={{ display: "flex", gap: 8 }}><button type="button" onClick={() => moveQuestion(index, -1)} disabled={index === 0} style={{ border: "1px solid #ddd", background: "#fff", borderRadius: 8, padding: "6px 9px", cursor: index === 0 ? "not-allowed" : "pointer" }}>^ Move up</button><button type="button" onClick={() => moveQuestion(index, 1)} disabled={index === editing.questions.length - 1} style={{ border: "1px solid #ddd", background: "#fff", borderRadius: 8, padding: "6px 9px", cursor: index === editing.questions.length - 1 ? "not-allowed" : "pointer" }}>v Move down</button><button type="button" onClick={() => removeQuestion(index)} style={{ border: 0, background: "transparent", color: "#a40000", cursor: "pointer", fontWeight: 800 }} disabled={editing.questions.length === 1}>Remove</button></div></div>
         <label style={labelStyle}>Question prompt<textarea style={{ ...fieldStyle, minHeight: 72 }} value={q.prompt} onChange={(e) => updateQuestion(index, "prompt", e.target.value)} required maxLength={500} /></label>
         <label style={labelStyle}>Help text (optional)<textarea style={{ ...fieldStyle, minHeight: 62 }} value={q.helpText || ""} onChange={(e) => updateQuestion(index, "helpText", e.target.value)} maxLength={1000} /></label>
         <label style={{ ...labelStyle, display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={q.required !== false} onChange={(e) => updateQuestion(index, "required", e.target.checked)} /> Required question</label>
         <label style={labelStyle}>Maximum answer length<input style={fieldStyle} type="number" min="100" max="4000" value={q.maxLength || 1500} onChange={(e) => updateQuestion(index, "maxLength", Number(e.target.value))} /></label>
       </section>)}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 22 }}><button type="submit" style={buttonStyle} disabled={saving}>{saving ? "Savingâ€¦" : "Save application"}</button><button type="button" style={{ ...buttonStyle, background: "#555960" }} onClick={() => setEditing(null)}>Cancel</button></div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 22 }}><button type="submit" style={buttonStyle} disabled={saving}>{saving ? "Saving..." : "Save application"}</button><button type="button" style={{ ...buttonStyle, background: "#555960" }} onClick={() => setEditing(null)}>Cancel</button></div>
     </form>}
     <p style={{ color: "#858a90", fontSize: 12, lineHeight: 1.6, marginTop: 24 }}>Image support currently uses an HTTPS image URL; direct file uploads can be added later when image storage is configured.</p>
-    <p style={{ marginTop: 20 }}><Link to="/staff/owner">â† Back to Owner Control Room</Link></p>
+    <p style={{ marginTop: 20 }}><Link to="/staff/owner">&lt;- Back to Owner Control Room</Link></p>
   </div></main>;
 }
 
@@ -1575,10 +1612,10 @@ function ApplicationAvailabilityControls() {
   }
 
   return <main className="public-page"><div className="public-card" style={{ maxWidth: 900, width: "100%" }}>
-    <span className="header-kicker">STAFF / BOD CONTROLS</span><h1>Application Availability</h1><p style={{ color: "#666", lineHeight: 1.6 }}>Only the CHRO can open or close application opportunities. Changes are saved immediately and enforced by the server.</p>
+    <span className="header-kicker">STAFF / OWNER / BOD CONTROLS</span><h1>Application Availability</h1><p style={{ color: "#666", lineHeight: 1.6 }}>The Owner, CHRO, and authorized Board of Directors members can open or close published application opportunities. Changes are saved immediately and enforced by the server.</p>
     {error && <div role="alert" style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#fff1f1", color: "#a40000" }}>{error}</div>}
     {notice && <div role="status" style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#eefbf2", color: "#176b38" }}>{notice}</div>}
-    {loading ? <p>Checking CHRO permissionsâ€¦</p> : <div style={{ display: "grid", gap: 12, marginTop: 20 }}>{applications.map((app) => <article key={app.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", border: "1px solid #e5e5e5", borderRadius: 14, padding: 16 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}>{app.imageUrl && <img src={app.imageUrl} alt="" style={{ width: 58, height: 46, objectFit: "cover", borderRadius: 8 }} />}<div><strong>{app.name}</strong><div style={{ color: "#777", fontSize: 12, marginTop: 4 }}>{app.department} Â· {app.isPublished ? "Published" : "Draft â€” not public"} Â· {app.isOpen ? "Currently open" : "Currently closed"}</div></div></div><button type="button" disabled={busyId === app.id || (!app.isPublished && !app.isOpen)} onClick={() => toggle(app)} style={{ border: 0, borderRadius: 10, padding: "11px 14px", fontWeight: 900, cursor: busyId === app.id ? "wait" : "pointer", background: app.isOpen ? "#34363b" : "#d71920", color: "white", opacity: busyId === app.id || (!app.isPublished && !app.isOpen) ? .55 : 1 }}>{busyId === app.id ? "Savingâ€¦" : !app.isPublished ? "Publish in Owner Control Room" : app.isOpen ? "Close application" : "Open application"}</button></article>)}</div>}
+    {loading ? <p>Checking application-management permissions...</p> : <div style={{ display: "grid", gap: 12, marginTop: 20 }}>{applications.map((app) => <article key={app.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", border: "1px solid #e5e5e5", borderRadius: 14, padding: 16 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}>{app.imageUrl && <img src={app.imageUrl} alt="" style={{ width: 58, height: 46, objectFit: "cover", borderRadius: 8 }} />}<div><strong>{app.name}</strong><div style={{ color: "#777", fontSize: 12, marginTop: 4 }}>{app.department}  |  {app.isPublished ? "Published" : "Draft  -  not public"}  |  {app.isOpen ? "Currently open" : "Currently closed"}</div></div></div><button type="button" disabled={busyId === app.id || (!app.isPublished && !app.isOpen)} onClick={() => toggle(app)} style={{ border: 0, borderRadius: 10, padding: "11px 14px", fontWeight: 900, cursor: busyId === app.id ? "wait" : "pointer", background: app.isOpen ? "#34363b" : "#d71920", color: "white", opacity: busyId === app.id || (!app.isPublished && !app.isOpen) ? .55 : 1 }}>{busyId === app.id ? "Saving..." : !app.isPublished ? "Publish in Owner Control Room" : app.isOpen ? "Close application" : "Open application"}</button></article>)}</div>}
     <p style={{ color: "#858a90", fontSize: 12, marginTop: 22 }}>If your role is not authorized, the Worker will reject the request even if this page is opened directly.</p>
   </div></main>;
 }
@@ -1680,7 +1717,7 @@ function OwnerOrganization() {
   }
 
   if (checkingOwner) {
-    return <div style={ownerCardStyle}>Checking owner securityâ€¦</div>;
+    return <div style={ownerCardStyle}>Checking owner security...</div>;
   }
 
   if (!ownerAuthenticated) {
@@ -1732,7 +1769,7 @@ function OwnerOrganization() {
         {error && <div style={{ ...errorStyle, marginTop: 18 }}>{error}</div>}
 
         {loadingPeople ? (
-          <p style={{ color: "#777", marginTop: 24 }}>Loading organization recordsâ€¦</p>
+          <p style={{ color: "#777", marginTop: 24 }}>Loading organization records...</p>
         ) : (
           <div style={{ display: "grid", gap: 24, marginTop: 24 }}>
             {groups.map((group) => {
@@ -1998,7 +2035,7 @@ function ExecutiveStaffPage() {
               color: "#69727d"
             }}
           >
-            Loading Executive Staffâ€¦
+            Loading Executive Staff...
           </div>
         )}
 
@@ -2302,7 +2339,7 @@ function MyJet2Registration() {
 
     if (!/^[A-Za-z0-9 _-]{3,20}$/.test(cleanUsername)) {
       setError(
-        "Username must be 3â€“20 characters and may contain letters, numbers, spaces, hyphens, or underscores."
+        "Username must be 3-20 characters and may contain letters, numbers, spaces, hyphens, or underscores."
       );
       return;
     }
@@ -2476,7 +2513,7 @@ function MyJet2Registration() {
             </label>
 
             <p style={{ margin: "9px 0 0", color: "#92979e", fontSize: 11 }}>
-              3â€“20 characters Â· letters, numbers, spaces, - and _
+              3-20 characters  |  letters, numbers, spaces, - and _
             </p>
 
             {error && (
@@ -2509,13 +2546,13 @@ function MyJet2Registration() {
         {step === 2 && (
           <>
             <div style={{ color: "#d71920", fontSize: 11, fontWeight: 900, letterSpacing: ".13em", textTransform: "uppercase" }}>
-              Step 2 Â· Discord
+              Step 2  |  Discord
             </div>
             <h1 style={{ margin: "8px 0 10px", fontSize: "clamp(32px, 6vw, 48px)", lineHeight: 1, letterSpacing: "-.05em" }}>
               Connect your Discord.
             </h1>
             <p style={{ margin: "0 0 22px", color: "#70757c", lineHeight: 1.6, fontSize: 14 }}>
-              Discord is your myJet2 identity provider. Weâ€™ll verify that youâ€™re a member of the Jet2 | PTFS Discord server. No separate myJet2 password is needed.
+              Discord is your myJet2 identity provider. We'll verify that you're a member of the Jet2 | PTFS Discord server. No separate myJet2 password is needed.
             </p>
 
             <div style={{ padding: 17, borderRadius: 15, background: "#f7f7f8", border: "1px solid #e6e7e9", marginBottom: 20 }}>
@@ -2554,13 +2591,13 @@ function MyJet2Registration() {
         {step === 3 && (
           <>
             <div style={{ width: 62, height: 62, borderRadius: "50%", display: "grid", placeItems: "center", background: "#dcfce7", color: "#16a34a", fontSize: 30, marginBottom: 20 }}>
-              âœ“
+              &#10003;
             </div>
             <div style={{ color: "#16a34a", fontSize: 11, fontWeight: 900, letterSpacing: ".13em", textTransform: "uppercase" }}>
               Registration complete
             </div>
             <h1 style={{ margin: "8px 0 10px", fontSize: "clamp(34px, 6vw, 50px)", lineHeight: 1, letterSpacing: "-.05em" }}>
-              Youâ€™re all set!
+              You're all set!
             </h1>
             <p style={{ margin: "0 0 26px", color: "#70757c", lineHeight: 1.6, fontSize: 14 }}>
               Your myJet2 account is ready. Welcome aboard{username.trim() ? `, ${username.trim()}` : ""}.
@@ -2570,7 +2607,7 @@ function MyJet2Registration() {
               to="/myjet2"
               style={{ display: "block", textAlign: "center", textDecoration: "none", borderRadius: 12, padding: "14px 18px", background: "#d71920", color: "#fff", fontWeight: 900 }}
             >
-              Enter myJet2 â†’
+              Enter myJet2 -&gt;
             </Link>
           </>
         )}
@@ -2632,7 +2669,7 @@ function MyJet2LoginPage() {
         {error === "oauth" && <div role="alert" style={{ marginBottom: 18, padding: "12px 14px", borderRadius: 12, background: "#fff5f5", border: "1px solid #efc5c7", color: "#a30f16", fontSize: 13, lineHeight: 1.5 }}>Discord sign-in did not complete. Please try again.</div>}
 
         <button type="button" onClick={continueWithDiscord} disabled={starting} style={{ width: "100%", border: 0, borderRadius: 13, padding: "15px 18px", background: "#5865f2", color: "#fff", fontSize: 15, fontWeight: 900, cursor: starting ? "wait" : "pointer", opacity: starting ? .75 : 1 }}>
-          {starting ? "Connecting to Discordâ€¦" : "Continue with Discord"}
+          {starting ? "Connecting to Discord..." : "Continue with Discord"}
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0", color: "#a0a4aa", fontSize: 11, fontWeight: 800, letterSpacing: ".1em" }}><span style={{ height: 1, flex: 1, background: "#e7e8ea" }} />NEW TO MYJET2?<span style={{ height: 1, flex: 1, background: "#e7e8ea" }} /></div>
         <Link to="/myjet2/register" style={{ display: "block", textAlign: "center", border: "1px solid #dedfe2", borderRadius: 13, padding: "14px 18px", color: "#24272c", fontSize: 14, fontWeight: 800, textDecoration: "none" }}>Create a myJet2 account</Link>
@@ -2920,7 +2957,7 @@ function MyJet2() {
               lineHeight: 1.55
             }}
           >
-            Your flights, points and passenger perks â€” all in one place.
+            Your flights, points and passenger perks  -  all in one place.
           </p>
         </section>
 
@@ -2936,7 +2973,7 @@ function MyJet2() {
               color: "#70757c"
             }}
           >
-            Loading your myJet2 accountâ€¦
+            Loading your myJet2 account...
           </section>
         )}
 
@@ -2958,7 +2995,7 @@ function MyJet2() {
                 to="/myjet2/register"
                 style={{ color: "#a30f16", fontWeight: 900 }}
               >
-                Register for myJet2 â†’
+                Register for myJet2 -&gt;
               </Link>
             </div>
           </section>
@@ -3154,10 +3191,10 @@ function MyJet2() {
             }}
           >
             {[
-              ["ðŸŽ", "My Perks", "View and redeem available benefits."],
-              ["âœˆï¸", "My Flights", "View upcoming and previous flights."],
-              ["ðŸŽ«", "Priority Pass", "View active priority passes."],
-              ["ðŸ“œ", "Points History", "See how your points have changed."]
+              ["\u{1F381}", "My Perks", "View and redeem available benefits."],
+              ["\u{2708}\u{FE0F}", "My Flights", "View upcoming and previous flights."],
+              ["\u{1F3AB}", "Priority Pass", "View active priority passes."],
+              ["\u{1F4DC}", "Points History", "See how your points have changed."]
             ].map(([icon, title, description]) => (
               <Link
                 key={title}
@@ -3308,7 +3345,7 @@ function MyJet2() {
                       background: "#fff0f1"
                     }}
                   >
-                    â­
+                    &#11088;
                   </div>
 
                   <span
@@ -3461,7 +3498,7 @@ function MyJet2() {
                     marginBottom: 7
                   }}
                 >
-                  ðŸ“œ
+                  &#128220;
                 </div>
 
                 <strong
@@ -3552,7 +3589,7 @@ function MyJet2() {
                     marginBottom: 7
                   }}
                 >
-                  ðŸŽ«
+                  &#127915;
                 </div>
 
                 <strong
@@ -3589,7 +3626,7 @@ function MyJet2() {
             fontSize: 11
           }}
         >
-          <span>myJet2 Â· Jet2 | PTFS</span>
+          <span>myJet2  |  Jet2 | PTFS</span>
           <span>Passenger benefits programme</span>
         </footer>
       </div>
@@ -3768,7 +3805,7 @@ function ApplicationsPage() {
     return (
       <main className="public-page">
         <div className="public-card" style={{ maxWidth: 720, width: "100%" }}>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", display: "grid", placeItems: "center", background: "#dcfce7", color: "#16a34a", fontSize: 30, marginBottom: 20 }}>âœ“</div>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", display: "grid", placeItems: "center", background: "#dcfce7", color: "#16a34a", fontSize: 30, marginBottom: 20 }}>&#10003;</div>
           <span className="section-label">APPLICATION SUBMITTED</span>
           <h1 style={{ margin: "7px 0 12px" }}>You're all set.</h1>
           <p style={{ color: "#666", lineHeight: 1.7, margin: 0 }}>
@@ -3805,7 +3842,7 @@ function ApplicationsPage() {
         {loading ? (
           <section className="application-card">
             <span className="section-label">JET2 | PTFS</span>
-            <h2>Loading applicationsâ€¦</h2>
+            <h2>Loading applications...</h2>
             <p>Preparing the current application opportunities.</p>
           </section>
         ) : !selectedType ? (
@@ -3820,7 +3857,7 @@ function ApplicationsPage() {
                   {application.imageUrl ? (
                     <img className="application-type-image" src={application.imageUrl} alt="" loading="lazy" />
                   ) : (
-                    <span className="application-type-icon">âœ¦</span>
+                    <span className="application-type-icon">&#10022;</span>
                   )}
                   <div className="application-type-copy">
                     <strong>{application.name}</strong>
@@ -3828,7 +3865,7 @@ function ApplicationsPage() {
                     <em>{application.description}</em>
                     {application.requirements && <p className="application-requirements"><b>Requirements:</b> {application.requirements}</p>}
                     <span className={"application-status-pill" + (application.isOpen ? " is-open" : " is-closed")}>{application.isOpen ? "Open" : "Closed"}</span>
-                    <button type="button" className="application-start-button" disabled={!application.isOpen} onClick={() => beginApplication(application)}>{application.isOpen ? "Start Application â†’" : "Closed"}</button>
+                    <button type="button" className="application-start-button" disabled={!application.isOpen} onClick={() => beginApplication(application)}>{application.isOpen ? "Start Application -&gt;" : "Closed"}</button>
                   </div>
                 </article>
               ))}
@@ -3841,7 +3878,7 @@ function ApplicationsPage() {
           </section>
         ) : reviewing ? (
           <section className="application-card">
-            <button type="button" className="application-back" onClick={() => { setReviewing(false); setError(""); }}>â† Back to questions</button>
+            <button type="button" className="application-back" onClick={() => { setReviewing(false); setError(""); }}>&lt;- Back to questions</button>
             <span className="section-label">FINAL CHECK</span>
             <h2>Review your answers</h2>
             <p className="application-lead">Take a moment to check your responses. You can edit any answer before continuing to Discord verification.</p>
@@ -3858,12 +3895,12 @@ function ApplicationsPage() {
             </div>
             <div className="application-navigation" style={{ marginTop: 22 }}>
               <button type="button" className="secondary-button" onClick={() => { setReviewing(false); changeQuestion(Math.max(questions.length - 1, 0)); }}>Back</button>
-              <button type="button" className="primary-button" onClick={submitApplication} disabled={submitting}>{submitting ? "Preparing Discord verificationâ€¦" : "Continue to Discord verification â†’"}</button>
+              <button type="button" className="primary-button" onClick={submitApplication} disabled={submitting}>{submitting ? "Preparing Discord verification..." : "Continue to Discord verification -&gt;"}</button>
             </div>
           </section>
         ) : (
           <section className="application-card">
-            <button type="button" className="application-back" onClick={backToTypes}>â† All applications</button>
+            <button type="button" className="application-back" onClick={backToTypes}>&lt;- All applications</button>
 
             <div className="application-progress-row">
               <span>Question {questionIndex + 1} of {questions.length}</span>
@@ -3881,7 +3918,7 @@ function ApplicationsPage() {
                 maxLength={currentQuestion?.maxLength || 1500}
                 autoFocus
                 aria-label={currentQuestion?.prompt || "Application answer"}
-                placeholder="Write your answer hereâ€¦"
+                placeholder="Write your answer here..."
               />
               <div className="application-answer-meta">
                 <span>{currentQuestion?.required ? "Required" : "Optional"}</span>
@@ -3893,10 +3930,10 @@ function ApplicationsPage() {
               <button type="button" className="secondary-button" onClick={() => questionIndex === 0 ? backToTypes() : changeQuestion(questionIndex - 1)}>Back</button>
               {isLastQuestion ? (
                 <button type="button" className="primary-button" onClick={openReview} disabled={!currentValid || submitting}>
-                  Review answers â†’
+                  Review answers -&gt;
                 </button>
               ) : (
-                <button type="button" className="primary-button" onClick={() => currentValid && changeQuestion(questionIndex + 1)} disabled={!currentValid}>Next â†’</button>
+                <button type="button" className="primary-button" onClick={() => currentValid && changeQuestion(questionIndex + 1)} disabled={!currentValid}>Next -&gt;</button>
               )}
             </div>
           </section>
