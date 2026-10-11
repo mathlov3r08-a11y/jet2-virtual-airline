@@ -535,47 +535,30 @@ function getCookie(
   request,
   name
 ) {
-  const cookieHeader =
-    request.headers.get("Cookie");
+  const cookieHeader = request.headers.get("Cookie");
+  if (!cookieHeader) return null;
 
-  if (!cookieHeader) {
-    return null;
-  }
+  // Older releases may have left a same-name cookie scoped to /api/auth
+  // or /api/myjet2 alongside the current Path=/ cookie. Browsers send
+  // path-specific cookies first, so retain the LAST matching value.
+  let matchedValue = null;
+  for (const rawCookie of cookieHeader.split(";")) {
+    const cookie = rawCookie.trim();
+    const separator = cookie.indexOf("=");
+    if (separator === -1) continue;
 
-  const cookies =
-    cookieHeader
-      .split(";")
-      .map((cookie) =>
-        cookie.trim()
-      );
+    const key = cookie.substring(0, separator);
+    if (key !== name) continue;
 
-  for (const cookie of cookies) {
-    const separator =
-      cookie.indexOf("=");
-
-    if (separator === -1) {
-      continue;
-    }
-
-    const key =
-      cookie.substring(
-        0,
-        separator
-      );
-
-    const value =
-      cookie.substring(
-        separator + 1
-      );
-
-    if (key === name) {
-      return decodeURIComponent(
-        value
-      );
+    const value = cookie.substring(separator + 1);
+    try {
+      matchedValue = decodeURIComponent(value);
+    } catch {
+      matchedValue = value;
     }
   }
 
-  return null;
+  return matchedValue;
 }
 
 /* =========================================================
@@ -818,8 +801,7 @@ async function handleDiscordCallback(
   if (
     returnedState &&
     myJet2State &&
-    returnedState === myJet2State &&
-    !storedState
+    returnedState === myJet2State
   ) {
     return handleMyJet2Callback(
       env,
@@ -833,11 +815,18 @@ async function handleDiscordCallback(
     !storedState ||
     returnedState !== storedState
   ) {
+    const headers = new Headers({
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store"
+    });
+    headers.append("Set-Cookie", clearCookie("jet2_oauth_state"));
+    headers.append("Set-Cookie", clearCookie(MYJET2_OAUTH_STATE_COOKIE));
+    headers.append("Set-Cookie", clearCookie(APPLICATION_STATE_COOKIE));
+    headers.append("Set-Cookie", clearCookie(APPLICATION_DRAFT_COOKIE));
+    headers.append("Set-Cookie", clearCookie(MYJET2_SIGNUP_USERNAME_COOKIE));
     return new Response(
-      "Invalid OAuth state.",
-      {
-        status: 400
-      }
+      "This Discord sign-in attempt expired or its browser state could not be verified. Please return to the login page and start sign-in again.",
+      { status: 400, headers }
     );
   }
 
