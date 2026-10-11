@@ -2830,7 +2830,7 @@ function applicationPublicId() {
 function truncateDiscordText(value, max = 1024) {
   const text = String(value ?? "");
   if (text.length <= max) return text;
-  return `${text.slice(0, max - 1)}â€¦`;
+  return `${text.slice(0, max - 1)}...`;
 }
 
 async function getApplicationType(env, typeKey) {
@@ -3095,15 +3095,15 @@ async function handleApplicationCallback(env, request) {
   const forumResponse = await discordBotRequestWithJson(env, `/channels/${forumChannelId}/threads`, {
     method: "POST",
     body: JSON.stringify({
-      name: truncateDiscordText(`${application.name} â€” ${discordUser.username}`, 100),
+      name: truncateDiscordText(`${application.name}  -  ${discordUser.username}`, 100),
       message: {
         content: initialContent,
         embeds: [{
-          title: `Jet2 | PTFS â€” ${application.name}`,
+          title: `Jet2 | PTFS  -  ${application.name}`,
           description: application.description,
           color: 0xd71920,
           fields,
-          footer: { text: `${application.public_id} â€¢ Verified Discord member` },
+          footer: { text: `${application.public_id}  |  Verified Discord member` },
           timestamp: new Date().toISOString()
         }],
         
@@ -3333,8 +3333,9 @@ async function handleApplicationAvailability(env, request) {
   const member = await getGuildMember(env, user.discord_user_id);
   if (!member) return json({ error: "You must be a current Jet2 | PTFS Discord member." }, 403);
   const roleIds = new Set(member.roles || []);
-  const canManage = roleIds.has(ROLES.chro) || isOwnerIdentity(env, user);
-  if (!canManage) return json({ error: "Only the CHRO can open or close applications." }, 403);
+  const boardRoles = [ROLES.bod, ROLES.cdo, ROLES.cto, ROLES.chro, ROLES.cao, ROLES.cmo, ROLES.com, ROLES.cxo];
+  const canManage = isOwnerIdentity(env, user) || roleIds.has(ROLES.chro) || boardRoles.some((roleId) => roleIds.has(roleId));
+  if (!canManage) return json({ error: "Application availability is restricted to the Owner, CHRO, and Board of Directors." }, 403);
 
   if (request.method === "GET") {
     const result = await env.DB.prepare(
@@ -3425,7 +3426,7 @@ async function handleApplicationInteraction(env, request) {
   ).bind(decision, reviewerId, reviewerUsername, publicId).run();
 
   const applicantMessage = decision === "passed"
-    ? `ðŸŽ‰ **Your ${application.name} application has been accepted!**\\n\\nYour application **${publicId}** has been approved by **${reviewerUsername}**. A member of the team will provide any next steps in Discord.`
+    ? `\u{1F389} **Your ${application.name} application has been accepted!**\\n\\nYour application **${publicId}** has been approved by **${reviewerUsername}**. A member of the team will provide any next steps in Discord.`
     : `Thank you for applying to **Jet2 | PTFS**.\\n\\nYour **${application.name}** application (${publicId}) was not successful this time. You are welcome to apply again when the relevant application opens again.`;
 
   if (application.discord_user_id) {
@@ -3452,7 +3453,7 @@ async function handleApplicationInteraction(env, request) {
       body: JSON.stringify({
         embeds: [{
           title: `Application ${decision === "passed" ? "Passed" : "Failed"}`,
-          description: `${application.name} â€” ${publicId}`,
+          description: `${application.name}  -  ${publicId}`,
           color: decision === "passed" ? 0x22c55e : 0xd71920,
           fields: [
             { name: "Applicant", value: `<@${application.discord_user_id}>`, inline: true },
@@ -3804,7 +3805,7 @@ async function handleMyJet2Login(env, request) {
 
   if (username && !MYJET2_USERNAME_PATTERN.test(username)) {
     return new Response(
-      "Invalid myJet2 username. Use 3â€“20 letters, numbers, spaces, hyphens, or underscores.",
+      "Invalid myJet2 username. Use 3-20 letters, numbers, spaces, hyphens, or underscores.",
       { status: 400 }
     );
   }
